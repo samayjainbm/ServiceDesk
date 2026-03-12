@@ -1,0 +1,197 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model user_info {
+  user_id      Int    @id @default(autoincrement())
+  user_name    String @db.VarChar(50)
+  user_address String? @db.VarChar(100)     // optional so Google-only users can be created
+  phone_number String? @unique @db.VarChar(15)
+  password     String? @db.VarChar(255)
+
+  // ✅ Google Auth (nullable)
+  email      String? @unique @db.VarChar(255)
+  google_sub String? @unique @db.VarChar(255)
+  avatar     String? @db.VarChar(500)
+
+  // 1 user -> many complaints
+  complaints ongoing_complaints[]
+
+  @@map("user_info")
+}
+
+model items {
+  item_id   Int    @id @default(autoincrement())
+  item_name String @unique @db.VarChar(50)
+  count     Int    @default(0)
+
+  // relations
+  complaint_items complaint_items[]
+  demanded_items  demanded_items[]
+  worker_debt     worker_debt[]
+
+  // ✅ NEW relations
+  stock_purchased StockPurchased[]
+  demand_stock    DemandStock[]
+
+  @@map("items")
+}
+
+model ongoing_complaints {
+  complaint_id Int      @id
+  start_date   DateTime @db.Date
+
+  // user relation
+  user_id Int?
+  user    user_info? @relation(fields: [user_id], references: [user_id], onDelete: Restrict, onUpdate: Restrict)
+
+  // complaint snapshot fields
+  phone_number String @db.VarChar(15)
+  address      String @db.VarChar(100)
+  description  String @db.VarChar(250)
+
+  // worker assignment (nullable)
+  worker_id Int?
+  worker    worker_info? @relation("WorkerOngoingComplaints", fields: [worker_id], references: [worker_id], onDelete: Restrict, onUpdate: Restrict)
+
+  status ComplaintStatus @default(booked)
+
+  // complaint -> many item rows
+  items complaint_items[]
+
+  // ✅ complaint -> many demanded items rows
+  demanded_items demanded_items[]
+
+  @@index([user_id])
+  @@index([worker_id])
+  @@map("ongoing_complaints")
+}
+
+model complaint_items {
+  s_no         BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  complaint_id Int
+  item_id      Int
+  count        Int    @default(0)
+
+  complaint ongoing_complaints @relation(fields: [complaint_id], references: [complaint_id], onDelete: Cascade, onUpdate: Restrict)
+  item      items              @relation(fields: [item_id], references: [item_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([complaint_id, item_id])
+  @@index([complaint_id])
+  @@index([item_id])
+  @@map("complaint_items")
+}
+
+model demanded_items {
+  s_no         BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  worker_id    Int
+  complaint_id Int
+  item_id      Int
+  count        Int    @default(0)
+
+  worker    worker_info        @relation("WorkerDemandedItems", fields: [worker_id], references: [worker_id], onDelete: Restrict, onUpdate: Restrict)
+  complaint ongoing_complaints @relation(fields: [complaint_id], references: [complaint_id], onDelete: Cascade, onUpdate: Restrict)
+  item      items              @relation(fields: [item_id], references: [item_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([worker_id, complaint_id, item_id])
+  @@index([worker_id])
+  @@index([complaint_id])
+  @@index([item_id])
+  @@map("demanded_items")
+}
+
+model worker_debt {
+  s_no      BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  worker_id Int
+  item_id   Int
+  count     Int    @default(0)
+
+  worker worker_info @relation("WorkerDebt", fields: [worker_id], references: [worker_id], onDelete: Restrict, onUpdate: Restrict)
+  item   items       @relation(fields: [item_id], references: [item_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([worker_id, item_id])
+  @@index([worker_id])
+  @@index([item_id])
+  @@map("worker_debt")
+}
+
+model worker_info {
+  worker_id           Int    @id
+  name                String @db.VarChar(50)
+  worker_phone_number String @db.VarChar(15)
+  designation         String @db.VarChar(20)
+
+  ongoing_complaints ongoing_complaints[] @relation("WorkerOngoingComplaints")
+  demanded_items     demanded_items[]     @relation("WorkerDemandedItems")
+  worker_debt        worker_debt[]        @relation("WorkerDebt")
+  alloted_task       alloted_task?        @relation("WorkerAllotedTask")
+
+  credentials worker_credentials?
+
+  @@map("worker_info")
+}
+
+model alloted_task {
+  worker_id    Int @id
+  alloted_task Int @default(0)
+
+  worker worker_info @relation("WorkerAllotedTask", fields: [worker_id], references: [worker_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("alloted_task")
+}
+
+//
+// ✅ NEW TABLE 1: StockPurchased
+//
+model StockPurchased {
+  s_no      BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date      DateTime @db.Date
+  item_id   Int
+  item_name String   @db.VarChar(50)
+  count     Int      @default(0)
+
+  item items @relation(fields: [item_id], references: [item_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([date])
+  @@index([item_id])
+  @@map("StockPurchased")
+}
+
+//
+// ✅ NEW TABLE 2: DemandStock
+//
+model DemandStock {
+  s_no      BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  date      DateTime @db.Date
+  item_id   Int
+  item_name String   @db.VarChar(50)
+  count     Int      @default(0)
+
+  item items @relation(fields: [item_id], references: [item_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([date])
+  @@index([item_id])
+  @@map("DemandStock")
+}
+
+enum ComplaintStatus {
+  ongoing
+  delayed
+  booked
+}
+
+model worker_credentials {
+  worker_id       Int    @id
+  worker_password String @db.VarChar(255)
+
+  worker worker_info @relation(fields: [worker_id], references: [worker_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("worker_credentials")
+}
