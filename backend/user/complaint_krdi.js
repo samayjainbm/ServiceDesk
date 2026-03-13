@@ -14,26 +14,23 @@ function random4Digit() {
  */
 router.post("/", requireAuth, requireRole("user"), async (req, res) => {
   try {
+    console.log("=== complaint_krdi hit ===");
+    console.log("req.user =", req.user);
+    console.log("req.user?.userId =", req.user?.userId);
+    console.log("typeof req.user?.userId =", typeof req.user?.userId);
+    console.log("req.originalUrl =", req.originalUrl);
+
     const { description } = req.body;
 
     if (!description || typeof description !== "string" || !description.trim()) {
       return res.status(400).json({ success: false, message: "description required" });
     }
 
-    const loggedInUserId = Number(
-      req.user?.userId ?? req.user?.user_id ?? req.user?.id
-    );
+    const userId = Number(req.user?.userId);
+    console.log("final userId =", userId);
 
-    if (!loggedInUserId) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token payload: user id missing",
-      });
-    }
-
-    // 1) Fetch user details from user_info
     const user = await prisma.user_info.findUnique({
-      where: { user_id: loggedInUserId },
+      where: { user_id: userId },
       select: {
         user_id: true,
         user_address: true,
@@ -42,14 +39,15 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
       },
     });
 
+    console.log("db user =", user);
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // 2) Create complaint with unique 4-digit complaint_id
     let createdComplaint = null;
     for (let attempt = 0; attempt < 15; attempt++) {
-      const complaint_id = random4Digit();
+      const complaint_id = Math.floor(1000 + Math.random() * 9000);
 
       try {
         createdComplaint = await prisma.ongoing_complaints.create({
@@ -63,8 +61,9 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
             status: "booked",
           },
         });
-        break; // success
+        break;
       } catch (err) {
+        console.log("inner create error =", err.message);
         const msg = String(err?.message || "");
         if (msg.includes("Unique constraint") || msg.includes("Unique constraint failed")) {
           continue;
@@ -87,7 +86,11 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
     });
   } catch (err) {
     console.error("Create complaint error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 });
 
