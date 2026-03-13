@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const prisma = require("../config/db");
+const prisma = require("../config/db"); // ✅ if this file is inside /backend/worker/
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// POST /api/login_worker
+// Body: { "worker_id": 201, "password": "Worker@201" }
 router.post("/", async (req, res) => {
   try {
     const { worker_id, password } = req.body;
@@ -23,6 +25,7 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // ✅ 1) check worker exists in worker_info
     const worker = await prisma.worker_info.findUnique({
       where: { worker_id: wid },
       select: {
@@ -40,6 +43,7 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // ✅ 2) get hashed password from worker_credentials
     const creds = await prisma.worker_credentials.findUnique({
       where: { worker_id: wid },
       select: { worker_password: true },
@@ -52,6 +56,7 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // ✅ 3) bcrypt compare
     const ok = await bcrypt.compare(String(password), creds.worker_password);
     if (!ok) {
       return res.status(401).json({
@@ -60,6 +65,7 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // ✅ 4) JWT
     if (!process.env.JWT_SECRET) {
       return res.status(500).json({
         success: false,
@@ -74,7 +80,7 @@ router.post("/", async (req, res) => {
         designation: worker.designation,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "1h" }
     );
 
     return res.status(200).json({

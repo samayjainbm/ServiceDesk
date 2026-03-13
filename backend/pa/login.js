@@ -1,3 +1,4 @@
+// routes/paLogin.js
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
@@ -31,26 +32,23 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      {
-        userId: String(PA_ID),
-        role: "pa",
-      },
-      JWT_SECRET,
-      {
-        expiresIn: "7d",
-        issuer: "college_app_api",
-      }
-    );
+    // ✅ same JWT shape as middleware expects
+    const payload = {
+      userId: String(login_id),
+      role: "pa",
+      login_id: String(login_id),
+    };
+
+    const token = jwt.sign(payload, JWT_SECRET, {
+      expiresIn: "7d",
+      issuer: "college_app_api",
+    });
 
     return res.json({
       success: true,
       message: "Login successful",
       token,
-      user: {
-        id: String(PA_ID),
-        role: "pa",
-      },
+      role: "pa",
     });
   } catch (err) {
     console.error("PA login error:", err);

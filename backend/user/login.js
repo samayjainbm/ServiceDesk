@@ -1,40 +1,103 @@
+const express = require("express");
+const router = express.Router();
+const prisma = require("../config/db");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
 
-function requireAuth(req, res, next) {
-  const header = req.headers.authorization; // "Bearer <token>"
+const loginLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many login attempts. Try again later.",
+  },
+});
 
-  if (!header || !header.startsWith("Bearer ")) {
-    return res.status(401).json({
-      success: false,
-      message: "Not logged in",
-    });
-  }
-
-  const token = header.split(" ")[1];
-
+router.post("/", loginLimiter, async (req, res) => {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Authenticated user:", payload);
-    req.user = payload; // { userId, role, ... }
-    next();
-  } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid/expired token",
-    });
-  }
-}
+    const { id, password, captchaAnswer } = req.body;
 
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({
+    if (!id || !password) {
+      return res.status(400).json({
         success: false,
-        message: "Forbidden",
+        message: "id and password required",
       });
     }
-    next();
-  };
-}
 
-module.exports = { requireAuth, requireRole };
+    if (!captchaAnswer) {
+      return res.status(400).json({
+        success: false,
+        requireCaptcha: true,
+        message: "Captcha required",
+      });
+    }
+
+    if (String(captchaAnswer).trim() !== "7") {
+      return res.status(403).json({
+        success: false,
+        requireCaptcha: true,
+        message: "Invalid captcha",
+      });
+    }
+
+    const userId = parseInt(id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "id must be a number",
+      });
+    }
+
+    const user = await prisma.user_info.findUnique({
+      where: { user_id: userId },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid id or password",
+      });
+    }
+
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid id or password",
+      });
+    }
+
+    // ✅ only internal JWT payload changed
+    const token = jwt.sign(
+      {
+        userId: user.user_id,
+        role: user.role || "user",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        user_id: user.user_id,
+        user_name: user.user_name,
+        phone_number: user.phone_number,
+        user_address: user.user_address,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
+
+module.exports = router;
