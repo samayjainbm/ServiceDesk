@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const prisma = require("../config/db");
-const jwt = require("jsonwebtoken");
 const { requireAuth, requireRole } = require("../inventory/middlewares/auth");
 
 function random4Digit() {
@@ -14,23 +13,17 @@ function random4Digit() {
  */
 router.post("/", requireAuth, requireRole("user"), async (req, res) => {
   try {
-    console.log("=== complaint_krdi hit ===");
-    console.log("req.user =", req.user);
-    console.log("req.user?.userId =", req.user?.userId);
-    console.log("typeof req.user?.userId =", typeof req.user?.userId);
-    console.log("req.originalUrl =", req.originalUrl);
-
     const { description } = req.body;
 
     if (!description || typeof description !== "string" || !description.trim()) {
-      return res.status(400).json({ success: false, message: "description required" });
+      return res.status(400).json({
+        success: false,
+        message: "description required",
+      });
     }
 
-    const userId = Number(req.user?.userId);
-    console.log("final userId =", userId);
-
     const user = await prisma.user_info.findUnique({
-      where: { user_id: userId },
+      where: { user_id: Number(req.user.userId) },
       select: {
         user_id: true,
         user_address: true,
@@ -39,15 +32,17 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
       },
     });
 
-    console.log("db user =", user);
-
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
     let createdComplaint = null;
+
     for (let attempt = 0; attempt < 15; attempt++) {
-      const complaint_id = Math.floor(1000 + Math.random() * 9000);
+      const complaint_id = random4Digit();
 
       try {
         createdComplaint = await prisma.ongoing_complaints.create({
@@ -63,9 +58,8 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
         });
         break;
       } catch (err) {
-        console.log("inner create error =", err.message);
         const msg = String(err?.message || "");
-        if (msg.includes("Unique constraint") || msg.includes("Unique constraint failed")) {
+        if (msg.includes("Unique constraint")) {
           continue;
         }
         throw err;
