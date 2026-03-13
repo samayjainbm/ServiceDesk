@@ -9,7 +9,7 @@ function random4Digit() {
 }
 
 /**
- * POST /api/complaints
+ * POST /api/complaint_krdi
  * Body: { description: string }
  */
 router.post("/", requireAuth, requireRole("user"), async (req, res) => {
@@ -22,7 +22,7 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
 
     // 1) Fetch user details from user_info
     const user = await prisma.user_info.findUnique({
-      where: { user_id: req.user.user_id },
+      where: { user_id: req.user.userId },
       select: {
         user_id: true,
         user_address: true,
