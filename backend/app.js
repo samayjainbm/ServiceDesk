@@ -59,8 +59,8 @@ app.use("/api/pa/users", require("./pa/user_password_change"));
 app.use("/api/auth/google-auth", require("./google_auth/google_auth"));
 
 // Misc
-app.use("/api/db-check", require("./routes/db-check"));
-app.use("/api/run-seed", require("./routes/run_seed"));
+app.use("/api/db_check", require("./routes/db-check"));
+app.use("/api/run_seed", require("./routes/run_seed"));
 
 app.get("/", (req, res) => {
   res.send("ServiceDesk backend is running");
