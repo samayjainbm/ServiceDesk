@@ -1,11 +1,11 @@
 {
   "version": 2,
+  "buildCommand": "npx prisma generate && npx prisma db push",
+  "installCommand": "npm install",
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/index",
-      "buildCommand": "npx prisma generate && npx prisma db push",
-      "installCommand": "npm install"
+      "destination": "/api/index"
     }
   ]
 }
