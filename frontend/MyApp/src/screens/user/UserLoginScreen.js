@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BASE_URL, TOKEN_KEY } from "../../../config";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -11,7 +11,52 @@ export default function UserLoginScreen({ navigation }) {
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
   const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
+  const fetchCaptcha = async () => {
+    try {
+      setCaptchaLoading(true);
+
+      const res = await fetch(`${BASE_URL}/api/login_user/captcha`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      const raw = await res.text();
+      let data;
+
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(`Non-JSON response (HTTP ${res.status})`);
+      }
+
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || `Captcha fetch failed (HTTP ${res.status})`);
+      }
+
+      if (!data?.captchaId || !data?.question) {
+        throw new Error('Invalid captcha response from server');
+      }
+
+      setCaptchaId(data.captchaId);
+      setCaptchaQuestion(data.question);
+      setCaptchaAnswer('');
+    } catch (e) {
+      Alert.alert('Captcha Error', e?.message || 'Could not load captcha');
+    } finally {
+      setCaptchaLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
 
   const login = async () => {
     const uid = id.trim();
@@ -24,6 +69,10 @@ export default function UserLoginScreen({ navigation }) {
 
     if (!/^\d+$/.test(uid)) {
       return Alert.alert('Warning', 'ID must be numeric');
+    }
+
+    if (!captchaId) {
+      return Alert.alert('Warning', 'Captcha not loaded yet. Please refresh.');
     }
 
     if (!captcha) {
@@ -42,6 +91,7 @@ export default function UserLoginScreen({ navigation }) {
         body: JSON.stringify({
           id: uid,
           password: pwd,
+          captchaId,
           captchaAnswer: captcha,
         }),
       });
@@ -66,9 +116,14 @@ export default function UserLoginScreen({ navigation }) {
       await AsyncStorage.multiRemove(['token', 'role', 'user_data', 'pa_token', 'pa_user']);
       await AsyncStorage.setItem(TOKEN_KEY, data.token);
       await AsyncStorage.setItem('role', 'user');
-      await AsyncStorage.setItem('user_data', JSON.stringify(data.user || { user_id: Number(uid) }));
+      await AsyncStorage.setItem(
+        'user_data',
+        JSON.stringify(data.user || { user_id: Number(uid) })
+      );
 
       setCaptchaAnswer('');
+      setCaptchaId('');
+      setCaptchaQuestion('');
 
       navigation.reset({
         index: 0,
@@ -76,27 +131,20 @@ export default function UserLoginScreen({ navigation }) {
       });
     } catch (e) {
       Alert.alert('Login Failed', e?.message || 'Something went wrong');
+      await fetchCaptcha();
     } finally {
       setLoading(false);
     }
   };
 
   const loginWithGoogle = async () => {
-    const captcha = captchaAnswer.trim();
-
-    if (!captcha) {
-      return Alert.alert('Warning', 'Captcha required');
-    }
-
-    if (captcha !== '7') {
-      return Alert.alert('Warning', 'Invalid captcha');
-    }
-
     try {
       setLoading(true);
       await googleLoginUser();
-      setCaptchaAnswer('');
-      navigation.reset({ index: 0, routes: [{ name: 'UserHomeScreen' }] });
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'UserHomeScreen' }],
+      });
     } catch (e) {
       console.log("Google login error:", e);
       Alert.alert("Google Login Failed", e?.message || "Something went wrong");
@@ -134,16 +182,32 @@ export default function UserLoginScreen({ navigation }) {
             editable={!loading}
           />
 
-          <Text style={styles.label}>Captcha</Text>
+          <View style={styles.captchaHeader}>
+            <Text style={styles.label}>Captcha</Text>
+            <TouchableOpacity
+              onPress={fetchCaptcha}
+              disabled={loading || captchaLoading}
+            >
+              <Text style={styles.refreshText}>
+                {captchaLoading ? 'Loading...' : 'Refresh'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.captchaBox}>
-            <Text style={styles.captchaText}>Type 7 to continue</Text>
+            <Text style={styles.captchaText}>
+              {captchaLoading
+                ? 'Loading captcha...'
+                : (captchaQuestion || 'Captcha not available')}
+            </Text>
           </View>
 
           <TextInput
             style={styles.input}
-            placeholder="Enter captcha"
+            placeholder="Enter captcha answer"
             value={captchaAnswer}
             onChangeText={setCaptchaAnswer}
+            keyboardType="number-pad"
             editable={!loading}
           />
 
@@ -152,7 +216,9 @@ export default function UserLoginScreen({ navigation }) {
             onPress={login}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Login</Text>}
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.btnText}>Login</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -160,7 +226,9 @@ export default function UserLoginScreen({ navigation }) {
             onPress={loginWithGoogle}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.googleBtnText}>Continue with Google</Text>}
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.googleBtnText}>Continue with Google</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -204,6 +272,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
+  captchaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   captchaBox: {
     borderWidth: 1,
     borderColor: '#d1d5db',
@@ -217,6 +290,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#111827',
+  },
+  refreshText: {
+    color: '#2563eb',
+    fontWeight: '800',
+    marginTop: 10,
   },
   btn: {
     marginTop: 16,
