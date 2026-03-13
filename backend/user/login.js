@@ -4,6 +4,7 @@ const prisma = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
 
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -16,9 +17,59 @@ const loginLimiter = rateLimit({
   },
 });
 
+const captchaStore = new Map();
+
+function generateCaptchaData() {
+  const a = Math.floor(Math.random() * 10) + 1;
+  const b = Math.floor(Math.random() * 10) + 1;
+  const captchaId = crypto.randomBytes(16).toString("hex");
+  const answer = a + b;
+
+  captchaStore.set(captchaId, {
+    answer,
+    createdAt: Date.now(),
+  });
+
+  return {
+    captchaId,
+    question: `${a} + ${b} = ?`,
+  };
+}
+
+function cleanupCaptchas() {
+  const now = Date.now();
+  const TTL = 5 * 60 * 1000;
+
+  for (const [key, value] of captchaStore.entries()) {
+    if (now - value.createdAt > TTL) {
+      captchaStore.delete(key);
+    }
+  }
+}
+
+setInterval(cleanupCaptchas, 10 * 60 * 1000);
+
+router.get("/captcha", (req, res) => {
+  try {
+    const captcha = generateCaptchaData();
+
+    return res.json({
+      success: true,
+      captchaId: captcha.captchaId,
+      question: captcha.question,
+    });
+  } catch (err) {
+    console.error("Captcha generation error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Could not generate captcha",
+    });
+  }
+});
+
 router.post("/", loginLimiter, async (req, res) => {
   try {
-    const { id, password, captchaAnswer } = req.body;
+    const { id, password, captchaId, captchaAnswer } = req.body;
 
     if (!id || !password) {
       return res.status(400).json({
@@ -27,21 +78,45 @@ router.post("/", loginLimiter, async (req, res) => {
       });
     }
 
-    if (!captchaAnswer) {
+    if (
+      !captchaId ||
+      captchaAnswer === undefined ||
+      captchaAnswer === null ||
+      String(captchaAnswer).trim() === ""
+    ) {
       return res.status(400).json({
         success: false,
-        requireCaptcha: true,
         message: "Captcha required",
       });
     }
 
-    if (String(captchaAnswer).trim() !== "7") {
+    const savedCaptcha = captchaStore.get(captchaId);
+
+    if (!savedCaptcha) {
+      return res.status(400).json({
+        success: false,
+        message: "Captcha expired. Please refresh captcha.",
+      });
+    }
+
+    const captchaAge = Date.now() - savedCaptcha.createdAt;
+    if (captchaAge > 5 * 60 * 1000) {
+      captchaStore.delete(captchaId);
+      return res.status(400).json({
+        success: false,
+        message: "Captcha expired. Please refresh captcha.",
+      });
+    }
+
+    if (Number(captchaAnswer) !== Number(savedCaptcha.answer)) {
+      captchaStore.delete(captchaId);
       return res.status(403).json({
         success: false,
-        requireCaptcha: true,
         message: "Invalid captcha",
       });
     }
+
+    captchaStore.delete(captchaId);
 
     const userId = parseInt(id, 10);
     if (Number.isNaN(userId)) {
@@ -62,6 +137,13 @@ router.post("/", loginLimiter, async (req, res) => {
       });
     }
 
+    if (!user.password) {
+      return res.status(401).json({
+        success: false,
+        message: "Password login not available for this account",
+      });
+    }
+
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
       return res.status(401).json({
@@ -70,7 +152,6 @@ router.post("/", loginLimiter, async (req, res) => {
       });
     }
 
-    // ✅ only internal JWT payload changed
     const token = jwt.sign(
       {
         userId: user.user_id,
