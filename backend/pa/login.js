@@ -1,4 +1,3 @@
-// routes/paLogin.js
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const router = express.Router();
@@ -25,32 +24,40 @@ router.post("/", async (req, res) => {
       });
     }
 
-    if (login_id !== PA_ID || password !== PA_PASS) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    if (String(login_id) !== String(PA_ID) || String(password) !== String(PA_PASS)) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
     }
 
-    // ✅ JWT payload (keep it small)
-    const payload = {
-      sub: "pa",          // subject (who)
-      role: "pa",         // for requireRole("pa")
-      login_id: login_id, // optional
-    };
-
-    // ✅ Sign token
-    const token = jwt.sign(payload, JWT_SECRET, {
-      expiresIn: "7d",           // change as needed
-      issuer: "college_app_api", // optional
-    });
+    const token = jwt.sign(
+      {
+        userId: String(PA_ID),
+        role: "pa",
+      },
+      JWT_SECRET,
+      {
+        expiresIn: "7d",
+        issuer: "college_app_api",
+      }
+    );
 
     return res.json({
       success: true,
       message: "Login successful",
       token,
-      role: "pa",
+      user: {
+        id: String(PA_ID),
+        role: "pa",
+      },
     });
   } catch (err) {
     console.error("PA login error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 });
 

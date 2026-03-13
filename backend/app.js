@@ -41,12 +41,12 @@ app.use("/api/material_req", require("./worker/material_req"));
 app.use("/api/worker/", require("./worker/debt"));
 
 // User
-app.use("/api/login_user", require("./enduser/login"));
-app.use("/api/complaint_krdi", require("./enduser/complaint_krdi"));
-app.use("/api/show_complaint_id", require("./enduser/show_complaint_id"));
-app.use("/api/show_complaint_detail", require("./enduser/show_complaint_detail"));
-app.use("/api/resolved", require("./enduser/resolved"));
-app.use("/api/complaints/used-items/", require("./enduser/getUsedItems"));
+app.use("/api/login_user", require("./user/login"));
+app.use("/api/complaint_krdi", require("./user/complaint_krdi"));
+app.use("/api/show_complaint_id", require("./user/show_complaint_id"));
+app.use("/api/show_complaint_detail", require("./user/show_complaint_detail"));
+app.use("/api/resolved", require("./user/resolved"));
+app.use("/api/complaints/used-items/", require("./user/getUsedItems"));
 
 // PA
 app.use("/api/login_pa", require("./pa/login"));
