@@ -58,6 +58,8 @@ app.use("/api/pa/users", require("./pa/user_password_change"));
 // Google Auth
 app.use("/api/auth/google-auth", require("./google_auth/google_auth"));
 
+app.use("/api/db-check", require("./routes/db-check"));
+
 app.get("/", (req, res) => {
   res.send("ServiceDesk backend is running");
 });
