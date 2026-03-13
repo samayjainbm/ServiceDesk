@@ -38,6 +38,7 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
         message: "User not found",
       });
     }
+console.log("HELLO FROM REAL REPO");
 
     let createdComplaint = null;
 
