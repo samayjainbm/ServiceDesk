@@ -1,6 +1,8 @@
+const express = require("express");
+const router = express.Router();
 const prisma = require("../config/db");
 
-module.exports = async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const key = req.query.key;
 
@@ -11,7 +13,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 1) Clear old data
+    // Clear old data in dependency-safe order
     await prisma.DemandStock.deleteMany();
     await prisma.StockPurchased.deleteMany();
     await prisma.demanded_items.deleteMany();
@@ -24,7 +26,7 @@ module.exports = async (req, res) => {
     await prisma.items.deleteMany();
     await prisma.user_info.deleteMany();
 
-    // 2) Seed sample data
+    // Seed sample users
     await prisma.user_info.createMany({
       data: [
         {
@@ -44,6 +46,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed items
     await prisma.items.createMany({
       data: [
         { item_id: 1, item_name: "Pipe", count: 20 },
@@ -52,6 +55,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed workers
     await prisma.worker_info.createMany({
       data: [
         {
@@ -69,6 +73,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed worker credentials
     await prisma.worker_credentials.createMany({
       data: [
         { worker_id: 101, worker_password: "pass101" },
@@ -76,6 +81,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed complaints
     await prisma.ongoing_complaints.createMany({
       data: [
         {
@@ -101,6 +107,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed complaint items
     await prisma.complaint_items.createMany({
       data: [
         { complaint_id: 1, item_id: 1, count: 2 },
@@ -108,6 +115,7 @@ module.exports = async (req, res) => {
       ],
     });
 
+    // Seed allotted tasks
     await prisma.alloted_task.createMany({
       data: [
         { worker_id: 101, alloted_task: 1 },
@@ -127,4 +135,6 @@ module.exports = async (req, res) => {
       error: error.message,
     });
   }
-};
+});
+
+module.exports = router;
