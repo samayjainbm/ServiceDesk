@@ -1,4 +1,3 @@
-// BookedIdsScreen.js
 import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL, TOKEN_KEY } from "../../../../../config";
@@ -15,19 +14,21 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
-// const BASE_URL = "http://192.168.0.111:3000";
-
 export default function BookedIdsScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [items, setItems] = useState([]); // [{ complaint_id: 1010 }, ...]
+  const [items, setItems] = useState([]);
 
   const fetchBookedIds = async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      console.log("BOOKED_IDS TOKEN:", token);
+
       if (!token) {
         Alert.alert("Login required", "Token missing. Please login again.");
+        setLoading(false);
+        setRefreshing(false);
         return;
       }
 
@@ -39,14 +40,17 @@ export default function BookedIdsScreen() {
         },
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
+
+      console.log("BOOKED_IDS STATUS:", res.status);
+      console.log("BOOKED_IDS RESPONSE:", json);
 
       if (!res.ok || json?.success === false) {
         Alert.alert("Error", json?.message || "Failed to load booked ids");
+        setItems([]);
         return;
       }
 
-      // ✅ your exact response: { success, count, data:[{complaint_id}] }
       setItems(Array.isArray(json.data) ? json.data : []);
     } catch (e) {
       console.log("fetchBookedIds error:", e);
@@ -71,7 +75,9 @@ export default function BookedIdsScreen() {
       activeOpacity={0.86}
       style={styles.card}
       onPress={() =>
-        navigation.navigate("ComplaintDetails", { complaint_id: item.complaint_id })
+        navigation.navigate("ComplaintDetails", {
+          complaint_id: item.complaint_id,
+        })
       }
     >
       <View style={styles.row}>
@@ -102,7 +108,9 @@ export default function BookedIdsScreen() {
           keyExtractor={(it) => String(it.complaint_id)}
           renderItem={renderCard}
           contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           ListEmptyComponent={
             <View style={styles.center}>
               <Text style={styles.empty}>No booked complaints</Text>
@@ -134,7 +142,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
 
   idText: { fontSize: 18, fontWeight: "800", color: "#111827" },
 

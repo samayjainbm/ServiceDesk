@@ -1,7 +1,6 @@
-// screens/inventory/LoginScreen.js
-import React, { useState } from 'react';
-import{BASE_URL,token} from "../../../config";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from "react";
+import { BASE_URL, TOKEN_KEY } from "../../../config";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -13,14 +12,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
-
-// const BASE_URL = 'http://192.168.0.111:3000';
-// const BASE_URL = "http://localhost:3000";
+} from "react-native";
 
 export default function LoginScreen({ navigation }) {
-  const [id, setId] = useState('');
-  const [password, setPassword] = useState('');
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async () => {
@@ -28,7 +24,7 @@ export default function LoginScreen({ navigation }) {
     const pwd = password;
 
     if (!invId || !pwd) {
-      Alert.alert('Validation Error', 'ID and password are required');
+      Alert.alert("Validation Error", "ID and password are required");
       return;
     }
 
@@ -36,37 +32,47 @@ export default function LoginScreen({ navigation }) {
       setLoading(true);
 
       const res = await fetch(`${BASE_URL}/api/login_inventory`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: invId, password: pwd }),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: invId,
+          password: pwd,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
 
+      console.log("LOGIN STATUS:", res.status);
+      console.log("LOGIN DATA:", data);
+
       if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || 'Invalid credentials');
+        throw new Error(data?.message || "Invalid credentials");
       }
 
-      // optional: clear old auth data
       await AsyncStorage.multiRemove([
-        'token',
-        'role',
-        'user_data',
-        'worker_user',
-        'pa_user',
+        TOKEN_KEY,
+        "role",
+        "user_data",
+        "worker_user",
+        "pa_user",
       ]);
 
       if (data?.token) {
-        await AsyncStorage.setItem('token', data.token);
+        await AsyncStorage.setItem(TOKEN_KEY, data.token);
       }
-      await AsyncStorage.setItem('role', 'admin');
 
-      Alert.alert('Success', data?.message || 'Login successful');
+      await AsyncStorage.setItem("role", "admin");
 
-      navigation.replace('InventoryMenuScreen');
+      const savedToken = await AsyncStorage.getItem(TOKEN_KEY);
+      console.log("SAVED TOKEN AFTER LOGIN:", savedToken);
+
+      Alert.alert("Success", data?.message || "Login successful");
+      navigation.replace("InventoryMenuScreen");
     } catch (err) {
-      console.log('Inventory login error:', err);
-      Alert.alert('Login Failed', err?.message || 'Server not reachable');
+      console.log("Inventory login error:", err);
+      Alert.alert("Login Failed", err?.message || "Server not reachable");
     } finally {
       setLoading(false);
     }
@@ -75,7 +81,7 @@ export default function LoginScreen({ navigation }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -131,27 +137,27 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
-    backgroundColor: '#f6f7fb',
-    justifyContent: 'center',
+    backgroundColor: "#f6f7fb",
+    justifyContent: "center",
     padding: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
     elevation: 2,
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
   },
   subtitle: {
     marginTop: 6,
     marginBottom: 16,
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 14,
   },
   inputWrap: {
@@ -159,32 +165,32 @@ const styles = StyleSheet.create({
   },
   label: {
     marginBottom: 6,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: '#fff',
-    color: '#111827',
+    backgroundColor: "#fff",
+    color: "#111827",
   },
   loginBtn: {
     marginTop: 6,
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
     borderRadius: 12,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   loginBtnDisabled: {
     opacity: 0.7,
   },
   loginBtnText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 16,
   },
 });

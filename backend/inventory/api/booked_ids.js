@@ -1,14 +1,12 @@
-// Display only complaint_id of complaints having status "booked"
-
 const express = require("express");
 const router = express.Router();
 const prisma = require("../../config/db");
 const { requireAuth, requireRole } = require("../middlewares/auth");
 
-// GET /api/booked_ids
-// returns only complaint_id of complaints having status "booked"
 router.get("/", requireAuth, requireRole("admin"), async (req, res) => {
   try {
+    console.log("BOOKED_IDS req.user =", req.user);
+
     const rows = await prisma.ongoing_complaints.findMany({
       where: { status: "booked" },
       orderBy: { start_date: "desc" },
@@ -18,7 +16,7 @@ router.get("/", requireAuth, requireRole("admin"), async (req, res) => {
     return res.status(200).json({
       success: true,
       count: rows.length,
-      data: rows, // [{ complaint_id: 1 }, { complaint_id: 2 }, ...]
+      data: rows,
     });
   } catch (error) {
     console.error("Error fetching booked ids:", error);
