@@ -35,6 +35,13 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    if (!user.user_address || !user.phone_number) {
+      return res.status(400).json({
+        success: false,
+        message: "User address or phone number missing",
+      });
+    }
+
     // 2) Create complaint with unique 4-digit complaint_id
     let createdComplaint = null;
     for (let attempt = 0; attempt < 15; attempt++) {
