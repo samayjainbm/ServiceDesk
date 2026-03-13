@@ -1,0 +1,21 @@
+PORT=3000
+NODE_ENV=development
+DATABASE_URL="mysql://root:NewStrongPass@123@localhost:3306/servicedesk"
+LOGIN_ID=1234567890
+LOGIN_PASSWORD=YourStrongPassword@123
+
+GOOGLE_SHEETS_ID="your_sheet_id"
+GOOGLE_CLIENT_EMAIL="service-account@project.iam.gserviceaccount.com"
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEET_WEBHOOK_URL="https://script.google.com/macros/s/AKfycbxUiQ6NccGcYaq4BO_rZ2BJCijQFKj11OuKE83uAwSGcPiz0TUEgytcpb63mR1yyFqpag/exec"
+
+LOGIN_PA=2468135790
+LOGIN_PA_PASSWORD=MyStrongPassword@1234
+GOOGLE_WEB_CLIENT_ID="968435682668-68qgqa1hluta32hp26uf400kkh50dbsj.apps.googleusercontent.com"
+
+JWT_SECRET="supersecret"
+
+
+
+
+# AVNS_in2EwXkMh3TBtg3_2zW
