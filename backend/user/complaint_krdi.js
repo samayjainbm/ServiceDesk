@@ -14,6 +14,9 @@ function random4Digit() {
  */
 router.post("/", requireAuth, requireRole("user"), async (req, res) => {
   try {
+    console.log("BODY =", req.body);
+    console.log("USER =", req.user);
+
     const { description } = req.body;
 
     if (!description || typeof description !== "string" || !description.trim()) {
@@ -31,6 +34,8 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
       },
     });
 
+    console.log("DB USER =", user);
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
@@ -46,6 +51,7 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
     let createdComplaint = null;
     for (let attempt = 0; attempt < 15; attempt++) {
       const complaint_id = random4Digit();
+      console.log("TRY complaint_id =", complaint_id);
 
       try {
         createdComplaint = await prisma.ongoing_complaints.create({
@@ -59,8 +65,9 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
             status: "booked",
           },
         });
-        break; // success
+        break;
       } catch (err) {
+        console.log("INNER CREATE ERROR =", err);
         const msg = String(err?.message || "");
         if (msg.includes("Unique constraint") || msg.includes("Unique constraint failed")) {
           continue;
@@ -83,7 +90,12 @@ router.post("/", requireAuth, requireRole("user"), async (req, res) => {
     });
   } catch (err) {
     console.error("Create complaint error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
+    });
   }
 });
 
