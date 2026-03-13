@@ -74,6 +74,10 @@ app.use("/api/pa/users", require("./pa/user_password_change"));
 // Google Auth routes
 app.use('/api/auth/google-auth',require('./google_auth/google_auth'));
 
+app.get("/", (req, res) => {
+  res.send("ServiceDesk backend is running");
+});
+
 app.listen(3000, "0.0.0.0", () => {
   console.log("Server running on 0.0.0.0:3000");
 });
