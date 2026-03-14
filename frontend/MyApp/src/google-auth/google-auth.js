@@ -1,18 +1,24 @@
 // src/google-auth/google-auth.js
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { GOOGLE_WEB_CLIENT_ID, BASE_URL, TOKEN_KEY } from '../../config';
 
+let googleConfigured = false;
+
 /**
- * Call this once at app startup (e.g. App.js / index.js)
+ * Configure Google Sign-In once
  */
 export function initGoogleAuth() {
+  if (googleConfigured) return;
+
   GoogleSignin.configure({
-    webClientId: GOOGLE_WEB_CLIENT_ID, // MUST be "Web application" OAuth Client ID
-    offlineAccess: false,              // keep false unless you need server auth code / refresh token
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    offlineAccess: false,
     forceCodeForRefreshToken: false,
-    // scopes: ['profile', 'email'], // optional
   });
+
+  googleConfigured = true;
 }
 
 /**
@@ -20,29 +26,29 @@ export function initGoogleAuth() {
  */
 export async function googleLoginUser() {
   try {
-    // 1) Ensure Play Services available
+    initGoogleAuth();
+
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-    // 2) Prevent stale session (very common during setup)
-    // revokeAccess is stronger than signOut
     await GoogleSignin.revokeAccess().catch(() => {});
     await GoogleSignin.signOut().catch(() => {});
 
-    // 3) Start sign-in
     const userInfo = await GoogleSignin.signIn();
 
-    // 4) Get tokens
     const tokens = await GoogleSignin.getTokens();
     const idToken = tokens?.idToken;
     const accessToken = tokens?.accessToken;
 
-    // Debug logs (remove later)
     console.log('Google userInfo:', userInfo);
-    console.log('Google tokens:', { hasIdToken: !!idToken, hasAccessToken: !!accessToken });
+    console.log('Google tokens:', {
+      hasIdToken: !!idToken,
+      hasAccessToken: !!accessToken,
+    });
 
-    if (!idToken) throw new Error('No idToken received from Google');
+    if (!idToken) {
+      throw new Error('No idToken received from Google');
+    }
 
-    // 5) Send idToken to backend
     const res = await fetch(`${BASE_URL}/api/auth/google-auth/user`, {
       method: 'POST',
       headers: {
@@ -52,14 +58,23 @@ export async function googleLoginUser() {
       body: JSON.stringify({ idToken }),
     });
 
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data;
+
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error(`Non-JSON backend response (HTTP ${res.status})`);
+    }
 
     if (!res.ok || data?.success === false) {
       throw new Error(data?.message || `Google login failed (HTTP ${res.status})`);
     }
-    if (!data?.token) throw new Error('Token not received from backend');
 
-    // 6) Store app token
+    if (!data?.token) {
+      throw new Error('Token not received from backend');
+    }
+
     await AsyncStorage.multiRemove(['token', 'role', 'user_data', 'pa_token', 'pa_user']);
     await AsyncStorage.setItem(TOKEN_KEY, data.token);
     await AsyncStorage.setItem('role', 'user');
@@ -67,40 +82,39 @@ export async function googleLoginUser() {
 
     return data;
   } catch (e) {
-    // ---- Super important debugging for "non-recoverable sign in failure" ----
     console.log('Google Sign-In ERROR name:', e?.name);
     console.log('Google Sign-In ERROR code:', e?.code);
     console.log('Google Sign-In ERROR message:', e?.message);
     console.log('Google Sign-In ERROR full:', JSON.stringify(e, null, 2));
 
-    // Make a cleaner message for UI
+    Alert.alert(
+      'Google Debug',
+      `code: ${e?.code || 'N/A'}\nmessage: ${e?.message || 'N/A'}`
+    );
+
     if (e?.code === statusCodes.SIGN_IN_CANCELLED) {
       throw new Error('Google sign-in cancelled');
     }
+
     if (e?.code === statusCodes.IN_PROGRESS) {
       throw new Error('Google sign-in already in progress');
     }
+
     if (e?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-      throw new Error('Google Play Services not available / outdated');
+      throw new Error('Google Play Services not available or outdated');
     }
 
-    // This is the one you were getting earlier
     if (e?.code === statusCodes.DEVELOPER_ERROR) {
-      // this error occurs when the OAuth client ID, package name, or SHA1
-      // fingerprint is misconfigured.  Provide a message that's easier for
-      // the end user to understand and includes next steps.
       throw new Error(
-        'Your Google account is not authorized for this application.'
+        'Google sign-in is not set up correctly on this build. Please check OAuth client, package name, and SHA fingerprint.'
       );
     }
 
-    // Fallback
     throw new Error(e?.message || 'Google sign-in failed');
   }
 }
 
 export async function googleLogout() {
-  // revokeAccess removes granted permissions too
   await GoogleSignin.revokeAccess().catch(() => {});
   await GoogleSignin.signOut().catch(() => {});
 }
