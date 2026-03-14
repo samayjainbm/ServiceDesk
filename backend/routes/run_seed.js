@@ -139,6 +139,14 @@ router.get("/", async (req, res) => {
         email: "priyanshmathur1105@gmail.com",
         google_sub: "TEST_GOOGLE_SUB_116987521760557625524",
         avatar: null,
+      },{
+        user_id: 12,
+        user_name: "Samay Jain",
+        user_address: "Bhopal",
+        phone_number: "9000000012",
+        email: "samayjain72258@gmail.com",
+        google_sub: "",
+        avatar: null,
       },
     ];
 
