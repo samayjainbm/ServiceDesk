@@ -38,7 +38,7 @@ app.use("/api/show_complaint", require("./worker/show_complaint"));
 app.use("/api/complaint_detail", require("./worker/complaint_detail"));
 app.use("/api/worker/show_items", require("./worker/itemdisp"));
 app.use("/api/material_req", require("./worker/material_req"));
-app.use("/api/worker/", require("./worker/debt"));
+app.use("/api/worker", require("./worker/debt"));
 
 // User
 app.use("/api/login_user", require("./user/login"));
