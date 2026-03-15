@@ -16,7 +16,7 @@ router.get("/:worker_id", requireAuth, requireRole("worker"), async (req, res) =
       });
     }
 
-    // worker sirf apna hi debt dekh sake
+    // worker sirf apna debt dekh sake
     if (workerIdFromToken !== workerIdFromParams) {
       return res.status(403).json({
         success: false,
@@ -24,7 +24,24 @@ router.get("/:worker_id", requireAuth, requireRole("worker"), async (req, res) =
       });
     }
 
-    const debts = await prisma.worker_debt.findMany({
+    // optional: verify worker exists
+    const workerExists = await prisma.worker_info.findUnique({
+      where: { worker_id: workerIdFromParams },
+      select: {
+        worker_id: true,
+        name: true,
+        designation: true,
+      },
+    });
+
+    if (!workerExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Worker not found",
+      });
+    }
+
+    const debtRows = await prisma.worker_debt.findMany({
       where: {
         worker_id: workerIdFromParams,
         count: {
@@ -34,23 +51,29 @@ router.get("/:worker_id", requireAuth, requireRole("worker"), async (req, res) =
       include: {
         item: {
           select: {
+            item_id: true,
             item_name: true,
           },
         },
       },
+      orderBy: {
+        item_id: "asc",
+      },
     });
 
-    const items = debts.map((row) => ({
+    const items = debtRows.map((row) => ({
       item_id: row.item_id,
-      item_name: row.item?.item_name || `Item ${row.item_id}`,
+      item_name: row.item?.item_name || "Unknown Item",
       count: row.count,
     }));
 
-    const totalCount = items.reduce((sum, item) => sum + item.count, 0);
+    const totalCount = items.reduce((sum, curr) => sum + curr.count, 0);
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      worker_id: workerIdFromParams,
+      worker_id: workerExists.worker_id,
+      worker_name: workerExists.name,
+      designation: workerExists.designation,
       total_non_zero_items: items.length,
       total_count: totalCount,
       items,
