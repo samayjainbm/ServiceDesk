@@ -7,7 +7,8 @@ const { requireAuth, requireRole } = require("../inventory/middlewares/auth");
 
 router.get("/", requireAuth, requireRole("user"), async (req, res) => {
   try {
-    const userId = req.user.user_id;
+    const userId = req.user.userId;
+    console.log("Fetching ongoing complaints for user ID:", userId);
 
     const complaints = await prisma.ongoing_complaints.findMany({
       where: { user_id: userId },
