@@ -80,188 +80,196 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
       });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const oc = await tx.ongoing_complaints.findUnique({
-        where: { complaint_id: complaintId },
-        select: {
-          complaint_id: true,
-          worker_id: true,
-          phone_number: true,
-          address: true,
-          description: true,
-          status: true,
-          start_date: true,
-          user_id: true,
-        },
-      });
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const oc = await tx.ongoing_complaints.findUnique({
+          where: { complaint_id: complaintId },
+          select: {
+            complaint_id: true,
+            worker_id: true,
+            phone_number: true,
+            address: true,
+            description: true,
+            status: true,
+            start_date: true,
+            user_id: true,
+          },
+        });
 
-      if (!oc) {
-        return { ok: false, status: 404, message: "ongoing_complaints not found" };
-      }
+        if (!oc) {
+          return { ok: false, status: 404, message: "ongoing_complaints not found" };
+        }
 
-      if (oc.worker_id == null) {
-        return { ok: false, status: 400, message: "Worker not assigned; cannot resolve" };
-      }
+        if (oc.worker_id == null) {
+          return { ok: false, status: 400, message: "Worker not assigned; cannot resolve" };
+        }
 
-      // ✅ complaint allotted items with names
-      const complaintItemRows = await tx.complaint_items.findMany({
-        where: { complaint_id: complaintId },
-        select: {
-          item_id: true,
-          count: true,
-          item: {
-            select: {
-              item_id: true,
-              item_name: true,
+        // ✅ complaint allotted items with names
+        const complaintItemRows = await tx.complaint_items.findMany({
+          where: { complaint_id: complaintId },
+          select: {
+            item_id: true,
+            count: true,
+            item: {
+              select: {
+                item_id: true,
+                item_name: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      if (!complaintItemRows || complaintItemRows.length === 0) {
-        return {
-          ok: false,
-          status: 404,
-          message: "No complaint_items found for this complaint",
-        };
-      }
-
-      const allottedMap = new Map();
-      const itemNameToIdMap = new Map();
-
-      for (const row of complaintItemRows) {
-        const itemName = String(row?.item?.item_name || "").trim();
-        const itemId = Number(row?.item_id);
-        const count = Number(row?.count || 0);
-
-        if (!itemName) continue;
-
-        allottedMap.set(itemName, count);
-        itemNameToIdMap.set(itemName, itemId);
-      }
-
-      // ✅ used <= allotted
-      for (const row of usedItems) {
-        const allotted = allottedMap.get(row.item_name) || 0;
-        if (row.count > allotted) {
+        if (!complaintItemRows || complaintItemRows.length === 0) {
           return {
             ok: false,
-            status: 400,
-            message: `used count for ${row.item_name} cannot exceed allotted`,
+            status: 404,
+            message: "No complaint_items found for this complaint",
           };
         }
-      }
 
-      // ✅ convert to item_id based rows
-      const usedItemsWithIds = usedItems.map((row) => ({
-        item_name: row.item_name,
-        item_id: itemNameToIdMap.get(row.item_name),
-        count: row.count,
-      }));
+        const allottedMap = new Map();
+        const itemNameToIdMap = new Map();
 
-      for (const row of usedItemsWithIds) {
-        if (!Number.isInteger(row.item_id) || row.item_id <= 0) {
-          return {
-            ok: false,
-            status: 400,
-            message: `Invalid item in used_items: ${row.item_name}`,
-          };
+        for (const row of complaintItemRows) {
+          const itemName = String(row?.item?.item_name || "").trim();
+          const itemId = Number(row?.item_id);
+          const count = Number(row?.count || 0);
+
+          if (!itemName) continue;
+
+          allottedMap.set(itemName, count);
+          itemNameToIdMap.set(itemName, itemId);
         }
-      }
 
-      // ✅ worker debt rows
-      const workerDebtRows = await tx.worker_debt.findMany({
-        where: {
-          worker_id: oc.worker_id,
-          item_id: { in: usedItemsWithIds.map((x) => x.item_id) },
-        },
-        select: {
-          worker_id: true,
-          item_id: true,
-          count: true,
-          item: {
-            select: {
-              item_name: true,
-            },
-          },
-        },
-      });
-
-      const debtMap = new Map();
-      for (const row of workerDebtRows) {
-        const itemName = String(row?.item?.item_name || "").trim();
-        const count = Number(row?.count || 0);
-        if (!itemName) continue;
-        debtMap.set(itemName, count);
-      }
-
-      // ✅ debt must be enough
-      for (const row of usedItems) {
-        const debt = debtMap.get(row.item_name) || 0;
-        if (row.count > debt) {
-          return {
-            ok: false,
-            status: 400,
-            message: `Worker debt insufficient for ${row.item_name}`,
-          };
+        // ✅ used <= allotted
+        for (const row of usedItems) {
+          const allotted = allottedMap.get(row.item_name) || 0;
+          if (row.count > allotted) {
+            return {
+              ok: false,
+              status: 400,
+              message: `used count for ${row.item_name} cannot exceed allotted`,
+            };
+          }
         }
-      }
 
-      // ✅ worker_debt decrement
-      for (const row of usedItemsWithIds) {
-        await tx.worker_debt.updateMany({
+        // ✅ convert to item_id based rows
+        const usedItemsWithIds = usedItems.map((row) => ({
+          item_name: row.item_name,
+          item_id: itemNameToIdMap.get(row.item_name),
+          count: row.count,
+        }));
+
+        for (const row of usedItemsWithIds) {
+          if (!Number.isInteger(row.item_id) || row.item_id <= 0) {
+            return {
+              ok: false,
+              status: 400,
+              message: `Invalid item in used_items: ${row.item_name}`,
+            };
+          }
+        }
+
+        // ✅ worker debt rows
+        const workerDebtRows = await tx.worker_debt.findMany({
           where: {
             worker_id: oc.worker_id,
-            item_id: row.item_id,
+            item_id: { in: usedItemsWithIds.map((x) => x.item_id) },
           },
-          data: {
-            count: {
-              decrement: row.count,
+          select: {
+            worker_id: true,
+            item_id: true,
+            count: true,
+            item: {
+              select: {
+                item_name: true,
+              },
             },
           },
         });
-      }
 
-      // ✅ detailed used items for response/sheet
-      const usedItemsDetailed = usedItemsWithIds.map((x) => ({
-        item_id: x.item_id,
-        item_name: x.item_name,
-        count: x.count,
-      }));
+        const debtMap = new Map();
+        for (const row of workerDebtRows) {
+          const itemName = String(row?.item?.item_name || "").trim();
+          const count = Number(row?.count || 0);
+          if (!itemName) continue;
+          debtMap.set(itemName, count);
+        }
 
-      // ✅ customer name
-      let customerName = "";
-      if (oc.user_id != null) {
-        const user = await tx.user_info.findUnique({
-          where: { user_id: oc.user_id },
-          select: { user_name: true },
+        // ✅ debt must be enough
+        for (const row of usedItems) {
+          const debt = debtMap.get(row.item_name) || 0;
+          if (row.count > debt) {
+            return {
+              ok: false,
+              status: 400,
+              message: `Worker debt insufficient for ${row.item_name}`,
+            };
+          }
+        }
+
+        // ✅ worker_debt decrement (parallel)
+        await Promise.all(
+          usedItemsWithIds.map((row) =>
+            tx.worker_debt.updateMany({
+              where: {
+                worker_id: oc.worker_id,
+                item_id: row.item_id,
+              },
+              data: {
+                count: {
+                  decrement: row.count,
+                },
+              },
+            })
+          )
+        );
+
+        // ✅ delete complaint_items
+        await tx.complaint_items.deleteMany({
+          where: { complaint_id: complaintId },
         });
-        customerName = user?.user_name || "";
+
+        // ✅ delete ongoing complaint
+        await tx.ongoing_complaints.delete({
+          where: { complaint_id: complaintId },
+        });
+
+        return {
+          ok: true,
+          oc,
+          usedItemsDetailed: usedItemsWithIds.map((x) => ({
+            item_id: x.item_id,
+            item_name: x.item_name,
+            count: x.count,
+          })),
+        };
+      },
+      {
+        maxWait: 10000,
+        timeout: 20000,
       }
-
-      // ✅ delete complaint_items
-      await tx.complaint_items.deleteMany({
-        where: { complaint_id: complaintId },
-      });
-
-      // ✅ delete ongoing complaint
-      await tx.ongoing_complaints.delete({
-        where: { complaint_id: complaintId },
-      });
-
-      return {
-        ok: true,
-        oc,
-        customerName,
-        usedItemsDetailed,
-      };
-    });
+    );
 
     if (!result.ok) {
       return res.status(result.status).json({
         success: false,
         message: result.message,
       });
+    }
+
+    // ✅ customer name outside transaction
+    let customerName = "";
+    try {
+      if (result.oc.user_id != null) {
+        const user = await prisma.user_info.findUnique({
+          where: { user_id: result.oc.user_id },
+          select: { user_name: true },
+        });
+        customerName = user?.user_name || "";
+      }
+    } catch (e) {
+      console.error("customer fetch error:", e);
     }
 
     let sheetWarning = null;
@@ -274,7 +282,7 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
         complaint_id: result.oc.complaint_id,
         complaint_date: result.oc.start_date,
         resolved_date: new Date().toISOString(),
-        customer_name: result.customerName || "",
+        customer_name: customerName || "",
         phone_number: result.oc.phone_number || "",
         address: result.oc.address || "",
         issue_description: result.oc.description || "",
