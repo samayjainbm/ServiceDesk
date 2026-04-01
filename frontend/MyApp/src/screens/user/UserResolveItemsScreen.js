@@ -12,24 +12,14 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// const BASE_URL = 'http://192.168.0.111:3000';
-// const TOKEN_KEY = 'token'; // ✅ same token everywhere
-const KEYS = 'abcdefghijklmnop'.split('');
-
 export default function UserResolveItemsScreen({ route, navigation }) {
   const complaintId = route?.params?.complaintId ? String(route.params.complaintId) : '';
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // max allowed from GET
-  const [maxMap, setMaxMap] = useState(() =>
-    Object.fromEntries(KEYS.map((k) => [k, 0]))
-  );
-  // current selected by user
-  const [curMap, setCurMap] = useState(() =>
-    Object.fromEntries(KEYS.map((k) => [k, 0]))
-  );
+  // each item: { item_name, max_count, selected_count }
+  const [items, setItems] = useState([]);
 
   const authHeaders = useCallback(async () => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -49,6 +39,38 @@ export default function UserResolveItemsScreen({ route, navigation }) {
       data = null;
     }
     return { raw, data };
+  };
+
+  const normalizeItemsFromResponse = (data) => {
+    // expected:
+    // {
+    //   success: true,
+    //   complaint_id: 5240,
+    //   used_items: { a:10, b:10, c:20 },
+    //   used_items_list: [
+    //     { item_name: "a", used_count: 10 },
+    //     { item_name: "b", used_count: 10 },
+    //     { item_name: "c", used_count: 20 }
+    //   ]
+    // }
+
+    const arr = Array.isArray(data?.used_items_list) ? data.used_items_list : [];
+
+    return arr
+      .map((row) => {
+        const item_name = String(row?.item_name || '').trim();
+        const max_count = Number(row?.used_count ?? 0);
+
+        if (!item_name) {return null;}
+        if (!Number.isFinite(max_count) || max_count <= 0) {return null;}
+
+        return {
+          item_name,
+          max_count: Math.max(0, Math.trunc(max_count)),
+          selected_count: 0,
+        };
+      })
+      .filter(Boolean);
   };
 
   const fetchMaxItems = useCallback(async () => {
@@ -73,21 +95,8 @@ export default function UserResolveItemsScreen({ route, navigation }) {
         throw new Error(data?.message || raw || `HTTP ${res.status}`);
       }
 
-      // ⚠️ API can return directly {a:1...} OR {used_items:{...}} OR {data:{...}}
-      const maybe =
-        data?.used_items ||
-        data?.data ||
-        data;
-
-      const nextMax = {};
-      for (const k of KEYS) {
-        const v = maybe?.[k];
-        nextMax[k] = Number(v ?? 0);
-      }
-
-      setMaxMap(nextMax);
-      // start with all 0 (as you want)
-      setCurMap(Object.fromEntries(KEYS.map((k) => [k, 0])));
+      const normalizedItems = normalizeItemsFromResponse(data);
+      setItems(normalizedItems);
     } catch (e) {
       Alert.alert('Error', e?.message || 'Failed to load items');
     } finally {
@@ -99,37 +108,50 @@ export default function UserResolveItemsScreen({ route, navigation }) {
     fetchMaxItems();
   }, [fetchMaxItems]);
 
-  const inc = (k) => {
-    setCurMap((prev) => {
-      const cur = prev[k] ?? 0;
-      const mx = maxMap[k] ?? 0;
-      if (cur >= mx) {return prev;}
-      return { ...prev, [k]: cur + 1 };
-    });
+  const inc = (item_name) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.item_name !== item_name) {return item;}
+        if (item.selected_count >= item.max_count) {return item;}
+        return { ...item, selected_count: item.selected_count + 1 };
+      })
+    );
   };
 
-  const dec = (k) => {
-    setCurMap((prev) => {
-      const cur = prev[k] ?? 0;
-      if (cur <= 0) {return prev;}
-      return { ...prev, [k]: cur - 1 };
-    });
+  const dec = (item_name) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.item_name !== item_name) {return item;}
+        if (item.selected_count <= 0) {return item;}
+        return { ...item, selected_count: item.selected_count - 1 };
+      })
+    );
   };
+
+  const selectedItems = useMemo(() => {
+    return items
+      .filter((item) => Number(item.selected_count) > 0)
+      .map((item) => ({
+        item_name: item.item_name,
+        count: item.selected_count,
+      }));
+  }, [items]);
 
   const canSubmit = useMemo(() => {
-    // allow submit even if all 0 (your backend might accept)
-    return true;
-  }, []);
+    return selectedItems.length > 0;
+  }, [selectedItems]);
 
   const onSubmitResolve = async () => {
-    if (!canSubmit) {return;}
+    if (!canSubmit) {
+      Alert.alert('Error', 'Select at least one item with count > 0');
+      return;
+    }
 
     try {
       setSubmitting(true);
 
-      // body must be strings
-      const used_items = {};
-      for (const k of KEYS) {used_items[k] = String(curMap[k] ?? 0);}
+      // ✅ only selected items with count > 0
+      const used_items = selectedItems;
 
       const res = await fetch(`${BASE_URL}/api/resolved/${complaintId}`, {
         method: 'POST',
@@ -153,9 +175,9 @@ export default function UserResolveItemsScreen({ route, navigation }) {
     }
   };
 
-  const renderRow = ({ item: k }) => {
-    const mx = maxMap[k] ?? 0;
-    const cur = curMap[k] ?? 0;
+  const renderRow = ({ item }) => {
+    const mx = item.max_count ?? 0;
+    const cur = item.selected_count ?? 0;
 
     const minusDisabled = cur <= 0;
     const plusDisabled = cur >= mx;
@@ -163,14 +185,14 @@ export default function UserResolveItemsScreen({ route, navigation }) {
     return (
       <View style={styles.row}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.itemKey}>{k.toUpperCase()}</Text>
+          <Text style={styles.itemKey}>{item.item_name}</Text>
           <Text style={styles.itemMeta}>Max: {mx}</Text>
         </View>
 
         <View style={styles.counterWrap}>
           <TouchableOpacity
             style={[styles.btnSmall, styles.btnMinus, minusDisabled && styles.btnDisabled]}
-            onPress={() => dec(k)}
+            onPress={() => dec(item.item_name)}
             disabled={minusDisabled}
           >
             <Text style={styles.btnSmallText}>-</Text>
@@ -180,7 +202,7 @@ export default function UserResolveItemsScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={[styles.btnSmall, styles.btnPlus, plusDisabled && styles.btnDisabled]}
-            onPress={() => inc(k)}
+            onPress={() => inc(item.item_name)}
             disabled={plusDisabled}
           >
             <Text style={styles.btnSmallText}>+</Text>
@@ -205,18 +227,30 @@ export default function UserResolveItemsScreen({ route, navigation }) {
       <Text style={styles.sub}>Complaint ID: {complaintId}</Text>
 
       <FlatList
-        data={KEYS}
-        keyExtractor={(k) => k}
+        data={items}
+        keyExtractor={(item) => item.item_name}
         renderItem={renderRow}
-        contentContainerStyle={{ paddingBottom: 18 }}
+        ListEmptyComponent={
+          <View style={styles.centerEmpty}>
+            <Text style={styles.muted}>No allotted items found</Text>
+          </View>
+        }
+        contentContainerStyle={{ paddingBottom: 18, flexGrow: 1 }}
       />
 
       <TouchableOpacity
-        style={[styles.submitBtn, submitting && styles.btnDisabled]}
+        style={[
+          styles.submitBtn,
+          (!canSubmit || submitting) && styles.btnDisabled,
+        ]}
         onPress={onSubmitResolve}
-        disabled={submitting}
+        disabled={!canSubmit || submitting}
       >
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit & Resolve</Text>}
+        {submitting ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.submitText}>Submit & Resolve</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -224,6 +258,7 @@ export default function UserResolveItemsScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  centerEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   muted: { marginTop: 8, color: '#6b7280' },
 
   container: { flex: 1, backgroundColor: '#fff', padding: 14 },
@@ -240,7 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  itemKey: { fontSize: 16, fontWeight: '900', color: '#111827' },
+  itemKey: { fontSize: 16, fontWeight: '900', color: '#111827', textTransform: 'capitalize' },
   itemMeta: { marginTop: 2, color: '#6b7280', fontSize: 12, fontWeight: '700' },
 
   counterWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -3,8 +3,8 @@
 // Body:
 // {
 //   "used_items": [
-//     { "item_id": 1, "count": 2 },
-//     { "item_id": 4, "count": 1 }
+//     { "item_name": "a", "count": 2 },
+//     { "item_name": "b", "count": 1 }
 //   ]
 // }
 
@@ -29,7 +29,7 @@ async function appendToSheetViaAppsScript(payload) {
     throw new Error(data.message || `Sheet webhook failed: HTTP ${resp.status}`);
   }
 
-  return data; // sheet response bhi return karwa diya
+  return data;
 }
 
 router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res) => {
@@ -52,25 +52,24 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
       });
     }
 
-    // ✅ clean used_items
-    // only keep valid rows with count > 0
+    // ✅ clean used_items by item_name
     const mergedUsedMap = new Map();
 
     for (const row of usedRaw) {
-      const itemId = Number(row?.item_id);
+      const itemName = String(row?.item_name || "").trim();
       const count = Number(row?.count);
 
-      if (!Number.isInteger(itemId) || itemId <= 0) continue;
+      if (!itemName) continue;
       if (!Number.isFinite(count)) continue;
 
       const cleanCount = Math.max(0, Math.trunc(count));
       if (cleanCount <= 0) continue;
 
-      mergedUsedMap.set(itemId, (mergedUsedMap.get(itemId) || 0) + cleanCount);
+      mergedUsedMap.set(itemName, (mergedUsedMap.get(itemName) || 0) + cleanCount);
     }
 
-    const usedItems = Array.from(mergedUsedMap.entries()).map(([item_id, count]) => ({
-      item_id,
+    const usedItems = Array.from(mergedUsedMap.entries()).map(([item_name, count]) => ({
+      item_name,
       count,
     }));
 
@@ -81,7 +80,6 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
       });
     }
 
-    // ✅ DB transaction
     const result = await prisma.$transaction(async (tx) => {
       const oc = await tx.ongoing_complaints.findUnique({
         where: { complaint_id: complaintId },
@@ -105,7 +103,7 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
         return { ok: false, status: 400, message: "Worker not assigned; cannot resolve" };
       }
 
-      // ✅ complaint ke allotted items lao
+      // ✅ complaint allotted items with names
       const complaintItemRows = await tx.complaint_items.findMany({
         where: { complaint_id: complaintId },
         select: {
@@ -113,6 +111,7 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
           count: true,
           item: {
             select: {
+              item_id: true,
               item_name: true,
             },
           },
@@ -128,31 +127,53 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
       }
 
       const allottedMap = new Map();
+      const itemNameToIdMap = new Map();
+
       for (const row of complaintItemRows) {
-        allottedMap.set(Number(row.item_id), Number(row.count || 0));
+        const itemName = String(row?.item?.item_name || "").trim();
+        const itemId = Number(row?.item_id);
+        const count = Number(row?.count || 0);
+
+        if (!itemName) continue;
+
+        allottedMap.set(itemName, count);
+        itemNameToIdMap.set(itemName, itemId);
       }
 
       // ✅ used <= allotted
       for (const row of usedItems) {
-        const allotted = allottedMap.get(row.item_id) || 0;
+        const allotted = allottedMap.get(row.item_name) || 0;
         if (row.count > allotted) {
-          const itemName =
-            complaintItemRows.find((x) => Number(x.item_id) === row.item_id)?.item?.item_name ||
-            `item_id ${row.item_id}`;
-
           return {
             ok: false,
             status: 400,
-            message: `used count for ${itemName} cannot exceed allotted`,
+            message: `used count for ${row.item_name} cannot exceed allotted`,
           };
         }
       }
 
-      // ✅ worker debt rows lao
+      // ✅ convert to item_id based rows
+      const usedItemsWithIds = usedItems.map((row) => ({
+        item_name: row.item_name,
+        item_id: itemNameToIdMap.get(row.item_name),
+        count: row.count,
+      }));
+
+      for (const row of usedItemsWithIds) {
+        if (!Number.isInteger(row.item_id) || row.item_id <= 0) {
+          return {
+            ok: false,
+            status: 400,
+            message: `Invalid item in used_items: ${row.item_name}`,
+          };
+        }
+      }
+
+      // ✅ worker debt rows
       const workerDebtRows = await tx.worker_debt.findMany({
         where: {
           worker_id: oc.worker_id,
-          item_id: { in: usedItems.map((x) => x.item_id) },
+          item_id: { in: usedItemsWithIds.map((x) => x.item_id) },
         },
         select: {
           worker_id: true,
@@ -168,28 +189,26 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
 
       const debtMap = new Map();
       for (const row of workerDebtRows) {
-        debtMap.set(Number(row.item_id), Number(row.count || 0));
+        const itemName = String(row?.item?.item_name || "").trim();
+        const count = Number(row?.count || 0);
+        if (!itemName) continue;
+        debtMap.set(itemName, count);
       }
 
       // ✅ debt must be enough
       for (const row of usedItems) {
-        const debt = debtMap.get(row.item_id) || 0;
+        const debt = debtMap.get(row.item_name) || 0;
         if (row.count > debt) {
-          const itemName =
-            workerDebtRows.find((x) => Number(x.item_id) === row.item_id)?.item?.item_name ||
-            complaintItemRows.find((x) => Number(x.item_id) === row.item_id)?.item?.item_name ||
-            `item_id ${row.item_id}`;
-
           return {
             ok: false,
             status: 400,
-            message: `Worker debt insufficient for ${itemName}`,
+            message: `Worker debt insufficient for ${row.item_name}`,
           };
         }
       }
 
       // ✅ worker_debt decrement
-      for (const row of usedItems) {
+      for (const row of usedItemsWithIds) {
         await tx.worker_debt.updateMany({
           where: {
             worker_id: oc.worker_id,
@@ -203,29 +222,14 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
         });
       }
 
-      // ✅ item names sheet ke liye
-      const itemMasterRows = await tx.items.findMany({
-        where: {
-          item_id: { in: usedItems.map((x) => x.item_id) },
-        },
-        select: {
-          item_id: true,
-          item_name: true,
-        },
-      });
-
-      const itemNameMap = new Map();
-      for (const row of itemMasterRows) {
-        itemNameMap.set(Number(row.item_id), row.item_name);
-      }
-
-      const usedItemsDetailed = usedItems.map((x) => ({
+      // ✅ detailed used items for response/sheet
+      const usedItemsDetailed = usedItemsWithIds.map((x) => ({
         item_id: x.item_id,
-        item_name: itemNameMap.get(x.item_id) || `item_${x.item_id}`,
+        item_name: x.item_name,
         count: x.count,
       }));
 
-      // ✅ customer name nikalne ki koshish
+      // ✅ customer name
       let customerName = "";
       if (oc.user_id != null) {
         const user = await tx.user_info.findUnique({
@@ -235,7 +239,7 @@ router.post("/:complaint_id", requireAuth, requireRole("user"), async (req, res)
         customerName = user?.user_name || "";
       }
 
-      // ✅ delete complaint_items first
+      // ✅ delete complaint_items
       await tx.complaint_items.deleteMany({
         where: { complaint_id: complaintId },
       });
