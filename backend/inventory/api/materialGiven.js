@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const prisma = require("../prisma"); // <-- use singleton prisma
+const prisma = require("../../config/db"); // <-- use singleton prisma
 const { requireAuth, requireRole } = require("../middlewares/auth");
 router.post("/:complaint_id", requireAuth, requireRole("admin"), async (req, res) => {
   try {
