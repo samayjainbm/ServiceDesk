@@ -1,297 +1,80 @@
 // screens/ItemDisplayScreen.js
 import React, { useEffect, useState, useCallback } from 'react';
-import { BASE_URL, TOKEN_KEY } from "../../../../config";
-import AddItems from './AddItems';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import { BASE_URL } from '../../../../config';
+import { View, Text, FlatList, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ✅ Use localhost if adb reverse is set
-// const BASE_URL = 'http://localhost:3000';
-
-// ✅ Or your Wi-Fi IP
-// const BASE_URL = 'http://192.168.0.111:3000';
+import { useTheme } from '../../../theme';
+import { Screen, AppBar, Card, Avatar, Badge, Icon, Button, SkeletonList, EmptyState, useToast } from '../../../components/ui';
 
 export default function ItemDisplayScreen({ navigation }) {
+  const { colors } = useTheme();
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
-
+      if (isRefresh) setRefreshing(true); else setLoading(true);
       const token = await AsyncStorage.getItem('token');
-
       const res = await fetch(`${BASE_URL}/api/item_display`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-
       const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch items');
-      }
-
+      if (!res.ok || !data.success) { throw new Error(data.message || 'Failed to fetch items'); }
       setItems(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
       console.error('fetchItems error:', err);
-      Alert.alert('Error', err.message || 'Something went wrong');
+      toast.error(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
-  useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+  useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  const renderItemCard = ({ item }) => {
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate('ItemDetailsScreen', {
-            itemName: item.item_name,
-          })
-        }
-      >
-        <View style={styles.cardTopRow}>
-          <Text style={styles.cardTitle}>
-            Item: {String(item.item_name).toUpperCase()}
-          </Text>
-
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeLabel}>Count</Text>
-            <Text style={styles.countBadgeValue}>{item.count ?? 0}</Text>
-          </View>
+  const renderItemCard = ({ item }) => (
+    <Card onPress={() => navigation.navigate('ItemDetailsScreen', { itemName: item.item_name })} style={{ marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Avatar icon="box" role="inventory" size={44} />
+        <View style={{ flex: 1, marginLeft: 14 }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '800', textTransform: 'capitalize' }}>{item.item_name}</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>Tap to view debt details</Text>
         </View>
+        <Badge label={`${item.count ?? 0}`} color={colors.primary} tint={colors.primaryTint} />
+        <View style={{ marginLeft: 8 }}><Icon name="chevronRight" size={20} color={colors.textMuted} /></View>
+      </View>
+    </Card>
+  );
 
-        <Text style={styles.cardSubtitle}>Tap to view details</Text>
-      </TouchableOpacity>
-    );
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading items...</Text>
-      </SafeAreaView>
-    );
-  }
+  const Footer = (
+    <View style={{ gap: 10, marginTop: 6 }}>
+      <Button title="Return Items" icon="refresh" variant="secondary" onPress={() => navigation.navigate('ReturnItemsScreen')} />
+      <Button title="Demand Stock" icon="send" accent={colors.accent} onPress={() => navigation.navigate('DemandStockScreen')} />
+      <Button title="Add New Items" icon="plus" variant="secondary" onPress={() => navigation.navigate('AddItems')} />
+      <Button title="Add Inventory Storage" icon="plus" onPress={() => navigation.navigate('AddInventoryStorageScreen')} />
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.heading}>Inventory Items</Text>
-
-        <TouchableOpacity
-          style={styles.refreshBtn}
-          onPress={fetchItems}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.refreshBtnText}>Refresh</Text>
-        </TouchableOpacity>
-      </View>
-
-      <FlatList
-        data={items}
-        keyExtractor={(item, index) => `${item.item_name}-${index}`}
-        renderItem={renderItemCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListFooterComponent={
-          <View style={styles.footerButtons}>
-            <TouchableOpacity
-              style={styles.returnItemsButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('ReturnItemsScreen')}
-            >
-              <Text style={styles.returnItemsButtonText}>Return Items</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.demandStockButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('DemandStockScreen')}
-            >
-              <Text style={styles.demandStockButtonText}>Demand Stock</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.returnItemsButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('AddItems')}
-            >
-              <Text style={styles.returnItemsButtonText}>Add New Items</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.addButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('AddInventoryStorageScreen')}
-            >
-              <Text style={styles.addButtonText}>Add Inventory Storage</Text>
-            </TouchableOpacity>
-          </View>
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No items found.</Text>
-          </View>
-        }
-      />
-    </SafeAreaView>
+    <Screen header={<AppBar title="Inventory Storage" subtitle="Stock items" role="inventory" onBack={() => navigation.goBack()} />} padded={false} scroll={false}>
+      {loading ? (
+        <View style={{ padding: 16 }}>
+          <SkeletonList count={5} />
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item, index) => `${item.item_name}-${index}`}
+          renderItem={renderItemCard}
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchItems(true)} tintColor={colors.primary} colors={[colors.primary]} />}
+          ListFooterComponent={Footer}
+          ListEmptyComponent={<EmptyState icon="box" title="No items found" subtitle="Add inventory to get started." />}
+        />
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f7fb',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#374151',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  heading: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1f2937',
-  },
-  refreshBtn: {
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  refreshBtnText: {
-    color: '#111827',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    flex: 1,
-    paddingRight: 10,
-  },
-  cardSubtitle: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  countBadge: {
-    minWidth: 64,
-    backgroundColor: '#eef2ff',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  countBadgeLabel: {
-    fontSize: 11,
-    color: '#4f46e5',
-    fontWeight: '700',
-  },
-  countBadgeValue: {
-    marginTop: 2,
-    fontSize: 16,
-    color: '#1f2937',
-    fontWeight: '800',
-  },
-  footerButtons: {
-    marginTop: 14,
-    gap: 10,
-  },
-  returnItemsButton: {
-    backgroundColor: '#10b981',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  returnItemsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  demandStockButton: {
-    backgroundColor: '#f59e0b',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  demandStockButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  addButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  emptyBox: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 4,
-  },
-  emptyText: {
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-});

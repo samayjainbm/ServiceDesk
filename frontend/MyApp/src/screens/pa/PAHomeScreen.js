@@ -1,87 +1,31 @@
-// src/screens/PaHomeScreen.js
+// src/screens/pa/PAHomeScreen.js
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import MenuScaffold from '../../components/MenuScaffold';
+import { clearSession } from '../../hooks/useAuth';
 
 export default function PaHomeScreen({ navigation }) {
+  const logout = async () => {
+    await clearSession();
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
+  const items = [
+    { key: 'user', title: 'Users', desc: 'Create and manage user accounts', icon: 'user', onPress: () => navigation.navigate('PAUserScreen') },
+    { key: 'worker', title: 'Workers', desc: 'Create and manage worker accounts', icon: 'users', onPress: () => navigation.navigate('PAWorkerScreen') },
+    { key: 'records', title: 'Records', desc: 'Reports and activity records', icon: 'clipboard', onPress: () => navigation.navigate('PARecordsScreen') },
+    { key: 'inv', title: 'Inventory Required', desc: 'Pending material requirements', icon: 'box', onPress: () => navigation.navigate('InventoryRequiredScreen') },
+  ];
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => navigation.navigate('Home')}
-      >
-        <Text style={styles.backBtnText}>← Back</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>PA Dashboard</Text>
-
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate('PAUserScreen')}
-      >
-        <Text style={styles.btnText}>User</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate('PAWorkerScreen')}
-      >
-        <Text style={styles.btnText}>Worker</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate('PARecordsScreen')}
-      >
-        <Text style={styles.btnText}>Records</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate('InventoryRequiredScreen')}
-      >
-        <Text style={styles.btnText}>Inventory Required</Text>
-      </TouchableOpacity>
-    </View>
+    <MenuScaffold
+      role="pa"
+      title="PA Dashboard"
+      subtitle="Administration"
+      heroTitle="Administrator"
+      heroSubtitle="Manage users, workers and records"
+      heroIcon="users"
+      items={items}
+      onLogout={logout}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  backBtn: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 10,
-  },
-  backBtnText: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  btn: {
-    backgroundColor: '#111827',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 14,
-    alignItems: 'center',
-  },
-  btnText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});

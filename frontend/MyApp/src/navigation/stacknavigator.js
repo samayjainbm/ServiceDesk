@@ -1,7 +1,9 @@
 
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTheme } from '../theme';
 
+import Splash from '../screens/Splash';
 import Home from '../screens/home';
 // Inventory
 import AddItems from '../screens/inventory/InventoryStorage/AddItems';
@@ -59,71 +61,75 @@ import UserComplaintsScreen from '../screens/user/UserComplaintsScreen';
 import UserComplaintDetailScreen from '../screens/user/UserComplaintDetailScreen';
 import UserResolveItemsScreen from '../screens/user/UserResolveItemsScreen';
 import WorkerDebtScreen from '../screens/worker/workerDebtScreen';
+
 const Stack = createNativeStackNavigator();
 
-export default function StackNavigator() {
-  return (
-    <Stack.Navigator initialRouteName="Home">
+// Screens that render their own AppBar from the UI kit (no native header).
+const NO_HEADER = { headerShown: false };
 
-      <Stack.Screen name="Home" component={Home} />
+export default function StackNavigator() {
+  const { colors } = useTheme();
+
+  return (
+    <Stack.Navigator
+      initialRouteName="Splash"
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      <Stack.Screen name="Splash" component={Splash} options={NO_HEADER} />
+      <Stack.Screen name="Home" component={Home} options={NO_HEADER} />
 
       {/* inventory */}
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="InventoryMenuScreen" component={InventoryMenuScreen} />
-      <Stack.Screen name="ComplaintsMenuScreen" component={ComplaintsMenuScreen} />
-      <Stack.Screen name="bookedIds" component={BookedComplaintsScreen} />
-      <Stack.Screen name="ComplaintDetails" component={ComplaintDetailsScreen} />
-     <Stack.Screen name="AssignWorker" component={AssignWorkerScreen} />
-     <Stack.Screen name="AssignedComplaints" component={AssignedComplaintsScreen} />
-     <Stack.Screen name="ComplaintDetailsForOngoing_Delayed" component={ComplaintDetailsScreenForOngoing_Delayed}/>
-    <Stack.Screen name="DemandIdsScreen" component={DemandIdsScreen}/>
-    <Stack.Screen name="DemandItemDetailsScreen" component={DemandItemDetailsScreen}/>
-    <Stack.Screen name="ItemDisplayScreen" component = {ItemDisplayScreen}/>
-    <Stack.Screen name="ItemDetailsScreen" component={ItemDetailsScreen}/>
-    <Stack.Screen name="AddInventoryStorageScreen" component={AddInventoryStorageScreen}/>
-    <Stack.Screen name="ReturnItemsScreen" component={ReturnItemsScreen}/>
-    <Stack.Screen name="AddItems" component={AddItems} />
+      <Stack.Screen name="Login" component={LoginScreen} options={NO_HEADER} />
+      <Stack.Screen name="InventoryMenuScreen" component={InventoryMenuScreen} options={NO_HEADER} />
+      <Stack.Screen name="ComplaintsMenuScreen" component={ComplaintsMenuScreen} options={NO_HEADER} />
+      <Stack.Screen name="bookedIds" component={BookedComplaintsScreen} options={{ title: 'Not Assigned' }} />
+      <Stack.Screen name="ComplaintDetails" component={ComplaintDetailsScreen} options={{ title: 'Complaint Details' }} />
+      <Stack.Screen name="AssignWorker" component={AssignWorkerScreen} options={{ title: 'Assign Worker' }} />
+      <Stack.Screen name="AssignedComplaints" component={AssignedComplaintsScreen} options={{ title: 'Assigned' }} />
+      <Stack.Screen name="ComplaintDetailsForOngoing_Delayed" component={ComplaintDetailsScreenForOngoing_Delayed} options={{ title: 'Complaint Details' }} />
+      <Stack.Screen name="DemandIdsScreen" component={DemandIdsScreen} options={{ title: 'Demanded Items' }} />
+      <Stack.Screen name="DemandItemDetailsScreen" component={DemandItemDetailsScreen} options={{ title: 'Demand Details' }} />
+      <Stack.Screen name="ItemDisplayScreen" component={ItemDisplayScreen} options={{ title: 'Inventory Storage' }} />
+      <Stack.Screen name="ItemDetailsScreen" component={ItemDetailsScreen} options={{ title: 'Item Details' }} />
+      <Stack.Screen name="AddInventoryStorageScreen" component={AddInventoryStorageScreen} options={{ title: 'Add Stock' }} />
+      <Stack.Screen name="ReturnItemsScreen" component={ReturnItemsScreen} options={{ title: 'Return Items' }} />
+      <Stack.Screen name="AddItems" component={AddItems} options={{ title: 'Add Items' }} />
 
-    {/* demand stock */}
-    <Stack.Screen name="DemandStockScreen" component={DemandStockScreen} />
+      {/* demand stock */}
+      <Stack.Screen name="DemandStockScreen" component={DemandStockScreen} options={{ title: 'Demand Stock' }} />
 
-    {/* worker */}
-    <Stack.Screen name="WorkerLoginScreen" component={WorkerLoginScreen}/>
-    <Stack.Screen name="WorkerComplaintsListScreen" component={WorkerComplaintsListScreen}/>
-    <Stack.Screen name="WorkerComplaintDetailsScreen" component={WorkerComplaintDetailsScreen}/>
-    <Stack.Screen name="WorkerDemandItemsScreen" component={WorkerDemandItemsScreen}/>
-    <Stack.Screen name="WorkerDebtScreen" component={WorkerDebtScreen} />
+      {/* worker */}
+      <Stack.Screen name="WorkerLoginScreen" component={WorkerLoginScreen} options={NO_HEADER} />
+      <Stack.Screen name="WorkerComplaintsListScreen" component={WorkerComplaintsListScreen} options={{ title: 'My Tasks' }} />
+      <Stack.Screen name="WorkerComplaintDetailsScreen" component={WorkerComplaintDetailsScreen} options={{ title: 'Complaint Details' }} />
+      <Stack.Screen name="WorkerDemandItemsScreen" component={WorkerDemandItemsScreen} options={{ title: 'Demand Items' }} />
+      <Stack.Screen name="WorkerDebtScreen" component={WorkerDebtScreen} options={{ title: 'Material Debt' }} />
 
-    {/* user */}
-  <Stack.Screen name="UserLoginScreen" component={UserLoginScreen} />
-<Stack.Screen name="UserHomeScreen" component={UserHomeScreen} />
-<Stack.Screen name="UserRegisterComplaintScreen" component={UserRegisterComplaintScreen} />
-<Stack.Screen name="UserComplaintsScreen" component={UserComplaintsScreen} />
-<Stack.Screen name="UserComplaintDetailScreen" component={UserComplaintDetailScreen} />
+      {/* user */}
+      <Stack.Screen name="UserLoginScreen" component={UserLoginScreen} options={NO_HEADER} />
+      <Stack.Screen name="UserHomeScreen" component={UserHomeScreen} options={NO_HEADER} />
+      <Stack.Screen name="UserRegisterComplaintScreen" component={UserRegisterComplaintScreen} options={NO_HEADER} />
+      <Stack.Screen name="UserComplaintsScreen" component={UserComplaintsScreen} options={NO_HEADER} />
+      <Stack.Screen name="UserComplaintDetailScreen" component={UserComplaintDetailScreen} options={NO_HEADER} />
 
-
-    {/* pa */}
-    <Stack.Screen name="PALoginScreen" component={PALoginScreen} />
-    <Stack.Screen name="PAHomeScreen" component={PAHomeScreen} />
-   <Stack.Screen name="PAWorkerScreen" component={PAWorkerScreen} />
-<Stack.Screen name="PAWorkerCreateScreen" component={PAWorkerCreateScreen} />
-<Stack.Screen name="PAWorkerListScreen" component={PAWorkerListScreen} />
-<Stack.Screen name="PAWorkerDetailScreen" component={PAWorkerDetailScreen} />
-<Stack.Screen name="PAWorkerCredentialsScreen" component={PAWorkerCredentialsScreen} />
-<Stack.Screen name="PAUserScreen" component={PAUserScreen} />
-<Stack.Screen name="PAUserCreateScreen" component={PAUserCreateScreen} />
-<Stack.Screen name="PAUserListScreen" component={PAUserListScreen} />
-<Stack.Screen name="PAUserDetailScreen" component={PAUserDetailScreen} />
-<Stack.Screen name="PAUserPasswordScreen" component={PAUserPasswordScreen} />
-<Stack.Screen name="UserResolveItemsScreen" component={UserResolveItemsScreen} />
-<Stack.Screen name="InventoryRequiredScreen" component={InventoryRequiredScreen} />
-
-   </Stack.Navigator>
+      {/* pa */}
+      <Stack.Screen name="PALoginScreen" component={PALoginScreen} options={NO_HEADER} />
+      <Stack.Screen name="PAHomeScreen" component={PAHomeScreen} options={NO_HEADER} />
+      <Stack.Screen name="PAWorkerScreen" component={PAWorkerScreen} options={{ title: 'Workers' }} />
+      <Stack.Screen name="PAWorkerCreateScreen" component={PAWorkerCreateScreen} options={{ title: 'Create Worker' }} />
+      <Stack.Screen name="PAWorkerListScreen" component={PAWorkerListScreen} options={{ title: 'Workers' }} />
+      <Stack.Screen name="PAWorkerDetailScreen" component={PAWorkerDetailScreen} options={{ title: 'Worker Detail' }} />
+      <Stack.Screen name="PAWorkerCredentialsScreen" component={PAWorkerCredentialsScreen} options={{ title: 'Credentials' }} />
+      <Stack.Screen name="PAUserScreen" component={PAUserScreen} options={{ title: 'Users' }} />
+      <Stack.Screen name="PAUserCreateScreen" component={PAUserCreateScreen} options={{ title: 'Create User' }} />
+      <Stack.Screen name="PAUserListScreen" component={PAUserListScreen} options={{ title: 'Users' }} />
+      <Stack.Screen name="PAUserDetailScreen" component={PAUserDetailScreen} options={{ title: 'User Detail' }} />
+      <Stack.Screen name="PAUserPasswordScreen" component={PAUserPasswordScreen} options={{ title: 'Change Password' }} />
+      <Stack.Screen name="UserResolveItemsScreen" component={UserResolveItemsScreen} options={NO_HEADER} />
+      <Stack.Screen name="InventoryRequiredScreen" component={InventoryRequiredScreen} options={{ title: 'Inventory Required' }} />
+    </Stack.Navigator>
   );
 }
-
-
-
-
-
-

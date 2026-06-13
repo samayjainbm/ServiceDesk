@@ -1,13 +1,14 @@
 import React, { useCallback, useState } from 'react';
-import { BASE_URL, TOKEN_KEY } from "../../../config";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { BASE_URL, TOKEN_KEY } from '../../../config';
+import { View, Text, FlatList, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-
-// const BASE_URL = 'http://192.168.0.111:3000';
-// const TOKEN_KEY = 'token'; // ✅ ONLY ONE TOKEN NAME
+import { useTheme } from '../../theme';
+import { Screen, AppBar, Card, Avatar, Icon, StatusPill, SkeletonList, EmptyState, useToast } from '../../components/ui';
 
 export default function UserComplaintsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState([]);
@@ -22,7 +23,7 @@ export default function UserComplaintsScreen({ navigation }) {
 
   const load = useCallback(async (silent = false) => {
     try {
-      if (!silent) {setLoading(true);}
+      if (!silent) { setLoading(true); }
 
       const res = await fetch(`${BASE_URL}/api/show_complaint_id`, {
         method: 'GET',
@@ -34,21 +35,21 @@ export default function UserComplaintsScreen({ navigation }) {
       try { data = raw ? JSON.parse(raw) : {}; }
       catch { throw new Error(`Non-JSON response (HTTP ${res.status})`); }
 
-      if (!res.ok || data?.success === false) {throw new Error(data?.message || `HTTP ${res.status}`);}
+      if (!res.ok || data?.success === false) { throw new Error(data?.message || `HTTP ${res.status}`); }
 
       setItems(Array.isArray(data?.complaints) ? data.complaints : []);
     } catch (e) {
       if (String(e?.message || '').toLowerCase().includes('not logged')) {
-        Alert.alert('Warning', 'Not logged in. Please login again.');
+        toast.warning('Not logged in. Please login again.');
         navigation.reset({ index: 0, routes: [{ name: 'UserLoginScreen' }] });
         return;
       }
-      Alert.alert('Error', e?.message || 'Failed to load');
+      toast.error(e?.message || 'Failed to load');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authHeaders, navigation]);
+  }, [authHeaders, navigation, toast]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -58,51 +59,55 @@ export default function UserComplaintsScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
+    <Card
       onPress={() => navigation.navigate('UserComplaintDetailScreen', { complaintId: String(item.complaint_id) })}
+      style={{ marginBottom: 12 }}
     >
-      <View style={{ flex: 1 }}>
-        <Text style={styles.id}>Complaint ID: {item.complaint_id}</Text>
-        <Text style={styles.status}>Status: {item.status}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Avatar icon="clipboard" role="user" size={44} />
+        <View style={{ flex: 1, marginLeft: 14 }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '800' }}>
+            Complaint #{item.complaint_id}
+          </Text>
+          <View style={{ marginTop: 8 }}>
+            <StatusPill status={item.status} size="sm" />
+          </View>
+        </View>
+        <Icon name="chevronRight" size={22} color={colors.textMuted} />
       </View>
-      <Text style={styles.chev}>›</Text>
-    </TouchableOpacity>
+    </Card>
   );
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.muted}>Loading complaints...</Text>
-      </View>
-    );
-  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>My Complaints</Text>
-      <FlatList
-        data={items}
-        keyExtractor={(it, idx) => String(it.complaint_id ?? idx)}
-        renderItem={renderItem}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={items.length === 0 ? styles.emptyWrap : { paddingBottom: 20 }}
-        ListEmptyComponent={<Text style={styles.empty}>No complaints found.</Text>}
-      />
-    </View>
+    <Screen
+      header={<AppBar title="My Complaints" subtitle="MANIT ServiceDesk" role="user" onBack={() => navigation.goBack()} />}
+      padded={false}
+      scroll={false}
+    >
+      {loading ? (
+        <View style={{ padding: 16 }}>
+          <SkeletonList count={5} />
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(it, idx) => String(it.complaint_id ?? idx)}
+          renderItem={renderItem}
+          contentContainerStyle={items.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : { padding: 16 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="clipboard"
+              title="No complaints yet"
+              subtitle="Complaints you register will appear here. Pull down to refresh."
+              actionLabel="Register a complaint"
+              onAction={() => navigation.navigate('UserRegisterComplaintScreen')}
+            />
+          }
+        />
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: '#111827', marginBottom: 10 },
-  card: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 12, marginBottom: 10, backgroundColor: '#f9fafb', flexDirection: 'row', alignItems: 'center' },
-  id: { fontWeight: '900', color: '#111827', marginBottom: 4 },
-  status: { color: '#4b5563' },
-  chev: { fontSize: 28, color: '#9ca3af', marginLeft: 8, fontWeight: '700' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  muted: { marginTop: 8, color: '#6b7280' },
-  emptyWrap: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
-  empty: { color: '#6b7280' },
-});

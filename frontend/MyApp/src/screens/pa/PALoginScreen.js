@@ -1,33 +1,22 @@
 // src/screens/pa/PALoginScreen.js
 import React, { useState } from 'react';
-import { BASE_URL, TOKEN_KEY } from "../../../config";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { BASE_URL } from '../../../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// const BASE_URL = 'http://192.168.0.111:3000';
+import AuthScaffold from '../../components/AuthScaffold';
+import { Input, Button, useToast } from '../../components/ui';
 
 export default function PALoginScreen({ navigation }) {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const handlePALogin = async () => {
     const lid = loginId.trim();
     const pwd = password;
 
-    if (!lid || !pwd) {return Alert.alert('Validation Error', 'Login ID and password are required');}
-    if (!/^\d+$/.test(lid)) {return Alert.alert('Validation Error', 'Login ID must be numeric');}
+    if (!lid || !pwd) { return toast.warning('Login ID and password are required'); }
+    if (!/^\d+$/.test(lid)) { return toast.warning('Login ID must be numeric'); }
 
     try {
       setLoading(true);
@@ -40,14 +29,13 @@ export default function PALoginScreen({ navigation }) {
 
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok || data?.success === false) {throw new Error(data?.message || 'PA login failed');}
-      if (!data?.token) {throw new Error('Token not received from backend');}
+      if (!res.ok || data?.success === false) { throw new Error(data?.message || 'PA login failed'); }
+      if (!data?.token) { throw new Error('Token not received from backend'); }
 
-      // ✅ CLEAR everything old + save ONLY pa_token
+      // ✅ CLEAR everything old + save ONLY pa_token (keys unchanged)
       await AsyncStorage.multiRemove(['pa_token', 'role', 'user_data', 'worker_user', 'pa_user', 'token']);
       await AsyncStorage.setItem('pa_token', data.token);
       await AsyncStorage.setItem('role', 'pa');
-
       await AsyncStorage.setItem(
         'pa_user',
         JSON.stringify({
@@ -59,61 +47,38 @@ export default function PALoginScreen({ navigation }) {
       navigation.reset({ index: 0, routes: [{ name: 'PAHomeScreen' }] });
     } catch (err) {
       console.log('PA login error:', err);
-      Alert.alert('Login Failed', err?.message || 'Something went wrong');
+      toast.error(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <Text style={styles.title}>PA Login</Text>
-          <Text style={styles.subtitle}>Login with PA credentials</Text>
-
-          <View style={styles.inputWrap}>
-            <Text style={styles.label}>Login ID</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter PA login id"
-              value={loginId}
-              onChangeText={(text) => setLoginId(text.replace(/[^0-9]/g, ''))}
-              keyboardType="number-pad"
-              editable={!loading}
-            />
-          </View>
-
-          <View style={styles.inputWrap}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!loading}
-            />
-          </View>
-
-          <TouchableOpacity style={[styles.loginBtn, loading && styles.loginBtnDisabled]} onPress={handlePALogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginBtnText}>Login</Text>}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <AuthScaffold
+      role="pa"
+      title="PA Login"
+      caption="Sign in with your administrator credentials"
+      onBack={() => navigation.goBack()}
+    >
+      <Input
+        label="Login ID"
+        leftIcon="user"
+        placeholder="Enter PA login id"
+        value={loginId}
+        onChangeText={(text) => setLoginId(text.replace(/[^0-9]/g, ''))}
+        keyboardType="number-pad"
+        editable={!loading}
+      />
+      <Input
+        label="Password"
+        leftIcon="lock"
+        placeholder="Enter password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        editable={!loading}
+      />
+      <Button title="Login" iconRight="chevronRight" onPress={handlePALogin} loading={loading} style={{ marginTop: 4 }} />
+    </AuthScaffold>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContent: { flexGrow: 1, backgroundColor: '#f6f7fb', justifyContent: 'center', padding: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#e5e7eb', elevation: 2 },
-  title: { fontSize: 24, fontWeight: '700', color: '#111827' },
-  subtitle: { marginTop: 6, marginBottom: 16, color: '#6b7280', fontSize: 14 },
-  inputWrap: { marginBottom: 14 },
-  label: { marginBottom: 6, fontWeight: '600', color: '#374151' },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff', color: '#111827' },
-  loginBtn: { marginTop: 6, backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
-  loginBtnDisabled: { opacity: 0.7 },
-  loginBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-});

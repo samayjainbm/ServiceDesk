@@ -1,44 +1,32 @@
 // screens/worker/WorkerComplaintsListScreen.js
 import React, { useCallback, useEffect, useState } from 'react';
-import { BASE_URL, TOKEN_KEY } from "../../../config";
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  TouchableOpacity,
-  RefreshControl,
-  Alert,
-} from 'react-native';
+import { BASE_URL } from '../../../config';
+import { View, Text, FlatList, RefreshControl, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../../theme';
+import { Screen, AppBar, Card, Avatar, Icon, Button, SkeletonList, EmptyState, useToast } from '../../components/ui';
+import { clearSession } from '../../hooks/useAuth';
 
-// ✅ same setup as your app
-// const BASE_URL = 'http://192.168.0.111:3000';
-// const BASE_URL = "http://localhost:3000";
-
-export default function WorkerComplaintsListScreen({ navigation, route }) {
+export default function WorkerComplaintsListScreen({ navigation }) {
+  const { colors } = useTheme();
+  const toast = useToast();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
   const [workerId, setWorkerId] = useState(null);
 
-useEffect(() => {
-  (async () => {
-    const wid = await AsyncStorage.getItem('worker_id');
-    setWorkerId(wid);
-  })();
-}, []);
+  useEffect(() => {
+    (async () => {
+      const wid = await AsyncStorage.getItem('worker_id');
+      setWorkerId(wid);
+    })();
+  }, []);
+
   const fetchComplaints = useCallback(async (isRefresh = false) => {
     try {
-      if (isRefresh) {setRefreshing(true);}
-      else {setLoading(true);}
-
-      setError('');
+      if (isRefresh) { setRefreshing(true); } else { setLoading(true); }
 
       const token = await AsyncStorage.getItem('token');
-
       const res = await fetch(`${BASE_URL}/api/show_complaint`, {
         method: 'GET',
         headers: {
@@ -48,202 +36,77 @@ useEffect(() => {
       });
 
       const json = await res.json();
-
       if (!res.ok || json.success === false) {
         throw new Error(json.message || 'Failed to fetch complaints');
       }
-
-      // Expected: { success: true, complaints: [{ complaint_id: 1005 }, ...] }
       setComplaints(Array.isArray(json.complaints) ? json.complaints : []);
     } catch (err) {
       console.log('show_complaint error:', err);
-      const msg = err?.message || 'Something went wrong';
-      setError(msg);
-      Alert.alert('Error', msg);
+      toast.error(err?.message || 'Something went wrong');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
-  useEffect(() => {
-   
-    fetchComplaints();
-  }, [fetchComplaints]);
+  useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
 
-  const renderItem = ({ item, index }) => {
+  const logout = async () => {
+    await clearSession();
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
+  const renderItem = ({ item }) => {
     const complaintId = item?.complaint_id;
-
     return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.85}
-        onPress={() =>
-          navigation.navigate('WorkerComplaintDetailsScreen', {
-            complaint_id: complaintId,
-          })
-        }
-      >
-        <Text style={styles.cardTitle}>Complaint #{complaintId ?? '-'}</Text>
-
-        <View style={styles.row}>
-          <Text style={styles.label}>Complaint ID:</Text>
-          <Text style={styles.value}>{complaintId ?? '-'}</Text>
+      <Card onPress={() => navigation.navigate('WorkerComplaintDetailsScreen', { complaint_id: complaintId })} style={{ marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Avatar icon="clipboard" role="worker" size={44} />
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '800' }}>Complaint #{complaintId ?? '-'}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>Tap to view details</Text>
+          </View>
+          <Icon name="chevronRight" size={22} color={colors.textMuted} />
         </View>
-
-        <Text style={styles.tapHint}>Tap to view details →</Text>
-      </TouchableOpacity>
+      </Card>
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={{ marginTop: 10 }}>Loading complaints...</Text>
-      </View>
-    );
-  }
+  const right = (
+    <Pressable onPress={logout} hitSlop={10} accessibilityLabel="Log out" style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon name="logout" size={22} color="#FFFFFF" />
+    </Pressable>
+  );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.header}>My Complaints</Text>
-
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity
-            style={styles.debtBtn}
-            onPress={() =>
-             
-              navigation.navigate('WorkerDebtScreen', {
-                worker_id: workerId,
-              })
-            }
-          >
-            <Text style={styles.debtText}>Debt</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.reloadBtn} onPress={() => fetchComplaints()}>
-            <Text style={styles.reloadText}>Reload</Text>
-          </TouchableOpacity>
+    <Screen
+      header={<AppBar title="My Tasks" subtitle={workerId ? `Worker #${workerId}` : 'MANIT ServiceDesk'} role="worker" right={right} />}
+      padded={false}
+      scroll={false}
+    >
+      {loading ? (
+        <View style={{ padding: 16 }}>
+          <SkeletonList count={5} />
         </View>
-      </View>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <FlatList
-        data={complaints}
-        keyExtractor={(item, index) => `${item?.complaint_id ?? 'x'}-${index}`}
-        renderItem={renderItem}
-        contentContainerStyle={
-          complaints.length === 0 ? styles.emptyWrap : { paddingBottom: 20 }
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => fetchComplaints(true)}
-          />
-        }
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No complaints assigned.</Text>
-        }
-      />
-    </View>
+      ) : (
+        <FlatList
+          data={complaints}
+          keyExtractor={(item, index) => `${item?.complaint_id ?? 'x'}-${index}`}
+          renderItem={renderItem}
+          ListHeaderComponent={
+            <Button
+              title="Material Debt"
+              variant="secondary"
+              icon="box"
+              onPress={() => navigation.navigate('WorkerDebtScreen', { worker_id: workerId })}
+              style={{ marginBottom: 16 }}
+            />
+          }
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchComplaints(true)} tintColor={colors.primary} colors={[colors.primary]} />}
+          ListEmptyComponent={<EmptyState icon="clipboard" title="No tasks assigned" subtitle="Complaints assigned to you will appear here. Pull to refresh." />}
+        />
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f6f7fb',
-    padding: 14,
-    paddingTop: 18,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f6f7fb',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  reloadBtn: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  reloadText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-
-  // ✅ NEW (only for Debt button)
-  debtBtn: {
-    backgroundColor: '#111827',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  debtText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-
-  error: {
-    color: '#dc2626',
-    marginBottom: 10,
-    fontWeight: '500',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    elevation: 1,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 10,
-    color: '#111827',
-  },
-  row: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  label: {
-    width: 110,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  value: {
-    flex: 1,
-    color: '#111827',
-  },
-  tapHint: {
-    marginTop: 8,
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  emptyWrap: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#6b7280',
-    fontSize: 16,
-  },
-});

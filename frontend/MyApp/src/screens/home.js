@@ -1,83 +1,90 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StatusBar, Pressable } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../theme';
+import { Screen, Card, Icon, Avatar } from '../components/ui';
+import Crest from '../components/brand/Crest';
+
+const ROLES = [
+  { key: 'user', title: 'User Portal', desc: 'Register and track your complaints', icon: 'user', route: 'UserLoginScreen' },
+  { key: 'worker', title: 'Worker Portal', desc: 'Your assigned tasks and materials', icon: 'clipboard', route: 'WorkerLoginScreen' },
+  { key: 'inventory', title: 'Inventory Portal', desc: 'Items, stock and demand requests', icon: 'box', route: 'Login' },
+  { key: 'pa', title: 'Administration', desc: 'Manage users, workers and records', icon: 'users', route: 'PALoginScreen' },
+];
 
 export default function Home({ navigation }) {
-  const go = (role) => {
-    if (role === 'worker') {
-      navigation.navigate('WorkerLoginScreen');
-      return;
-    }
-
-    if (role === 'inventory') {
-      navigation.navigate('Login');
-      return;
-    }
-
-    if (role === 'pa') {
-      navigation.navigate('PALoginScreen');
-      return;
-    }
-
-    if (role === 'user') {
-      navigation.navigate('UserLoginScreen');
-      return;
-    }
-  };
+  const { colors, brand, getRoleAccent, isDark, toggleTheme, typography } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <Text style={styles.title}>College App</Text>
+    <Screen scroll padded={false} edges={['bottom', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.gradient[0]} />
 
-        <TouchableOpacity style={styles.btn} onPress={() => go('worker')}>
-          <Text style={styles.btnText}>LOGIN AS WORKER</Text>
-        </TouchableOpacity>
+      {/* Branded gradient header */}
+      <LinearGradient
+        colors={colors.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          paddingTop: insets.top + 18,
+          paddingBottom: 26,
+          paddingHorizontal: 20,
+          borderBottomLeftRadius: 26,
+          borderBottomRightRadius: 26,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Crest size={46} onDark />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900', letterSpacing: 0.3 }}>{brand.appName}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' }}>{brand.shortName}</Text>
+          </View>
+          <Pressable
+            onPress={toggleTheme}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle theme"
+            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon name={isDark ? 'sun' : 'moon'} size={20} color="#FFFFFF" />
+          </Pressable>
+        </View>
 
-        <TouchableOpacity style={styles.btn} onPress={() => go('pa')}>
-          <Text style={styles.btnText}>LOGIN AS PA</Text>
-        </TouchableOpacity>
+        <Text style={{ color: colors.gold, fontSize: 12.5, fontWeight: '700', fontStyle: 'italic', marginTop: 16 }}>
+          "{brand.motto}"
+        </Text>
+      </LinearGradient>
 
-        <TouchableOpacity style={styles.btn} onPress={() => go('inventory')}>
-          <Text style={styles.btnText}>LOGIN AS INVENTORY</Text>
-        </TouchableOpacity>
+      {/* Role picker */}
+      <View style={{ padding: 20 }}>
+        <Text style={{ ...typography.overline, color: colors.textMuted, marginBottom: 14 }}>CHOOSE YOUR PORTAL</Text>
 
-        <TouchableOpacity style={styles.btn} onPress={() => go('user')}>
-          <Text style={styles.btnText}>LOGIN AS USER</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 12 }}>
+          {ROLES.map((r) => {
+            const accent = getRoleAccent(r.key).color;
+            return (
+              <Card key={r.key} onPress={() => navigation.navigate(r.route)} accentBar={accent} style={{ paddingVertical: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 6 }}>
+                  <Avatar icon={r.icon} role={r.key} size={48} />
+                  <View style={{ flex: 1, marginLeft: 14 }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 16.5, fontWeight: '800' }}>{r.title}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }}>{r.desc}</Text>
+                  </View>
+                  <Icon name="chevronRight" size={22} color={colors.textMuted} />
+                </View>
+              </Card>
+            );
+          })}
+        </View>
+
+        <View style={{ alignItems: 'center', marginTop: 28 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 11.5, fontWeight: '600', textAlign: 'center' }}>{brand.status}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 11.5, textAlign: 'center', marginTop: 3 }}>
+            {brand.established} · Bhopal, M.P.
+          </Text>
+        </View>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f3eee8' },
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 28,
-    letterSpacing: 0.5,
-  },
-  btn: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: '#d9d2cb',
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#c9c0b8',
-    elevation: 2,
-  },
-  btnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-});

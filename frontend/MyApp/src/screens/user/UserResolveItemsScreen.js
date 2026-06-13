@@ -1,24 +1,41 @@
 // src/screens/user/UserResolveItemsScreen.js
-import { BASE_URL, TOKEN_KEY } from "../../../config";
+import { BASE_URL, TOKEN_KEY } from '../../../config';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  FlatList,
-} from 'react-native';
+import { View, Text, Pressable, FlatList } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../../theme';
+import { Screen, AppBar, Card, Button, Icon, SkeletonList, EmptyState, useToast } from '../../components/ui';
+
+function Stepper({ value, max, onInc, onDec }) {
+  const { colors, radius } = useTheme();
+  const minusDisabled = value <= 0;
+  const plusDisabled = value >= max;
+  const round = (disabled, bg) => ({
+    width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: bg, opacity: disabled ? 0.4 : 1,
+  });
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Pressable onPress={onDec} disabled={minusDisabled} style={round(minusDisabled, colors.surfaceAlt)}>
+        <Icon name="minus" size={18} color={colors.textPrimary} />
+      </Pressable>
+      <Text style={{ width: 34, textAlign: 'center', fontSize: 17, fontWeight: '900', color: colors.textPrimary }}>
+        {value}
+      </Text>
+      <Pressable onPress={onInc} disabled={plusDisabled} style={round(plusDisabled, colors.primary)}>
+        <Icon name="plus" size={18} color="#FFFFFF" />
+      </Pressable>
+    </View>
+  );
+}
 
 export default function UserResolveItemsScreen({ route, navigation }) {
   const complaintId = route?.params?.complaintId ? String(route.params.complaintId) : '';
+  const { colors } = useTheme();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  // each item: { item_name, max_count, selected_count }
   const [items, setItems] = useState([]);
 
   const authHeaders = useCallback(async () => {
@@ -33,259 +50,149 @@ export default function UserResolveItemsScreen({ route, navigation }) {
   const parseJson = async (res) => {
     const raw = await res.text();
     let data = null;
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = null;
-    }
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = null; }
     return { raw, data };
   };
 
   const normalizeItemsFromResponse = (data) => {
-    // expected:
-    // {
-    //   success: true,
-    //   complaint_id: 5240,
-    //   used_items: { a:10, b:10, c:20 },
-    //   used_items_list: [
-    //     { item_name: "a", used_count: 10 },
-    //     { item_name: "b", used_count: 10 },
-    //     { item_name: "c", used_count: 20 }
-    //   ]
-    // }
-
     const arr = Array.isArray(data?.used_items_list) ? data.used_items_list : [];
-
     return arr
       .map((row) => {
         const item_name = String(row?.item_name || '').trim();
         const max_count = Number(row?.used_count ?? 0);
-
-        if (!item_name) {return null;}
-        if (!Number.isFinite(max_count) || max_count <= 0) {return null;}
-
-        return {
-          item_name,
-          max_count: Math.max(0, Math.trunc(max_count)),
-          selected_count: 0,
-        };
+        if (!item_name) { return null; }
+        if (!Number.isFinite(max_count) || max_count <= 0) { return null; }
+        return { item_name, max_count: Math.max(0, Math.trunc(max_count)), selected_count: 0 };
       })
       .filter(Boolean);
   };
 
   const fetchMaxItems = useCallback(async () => {
     if (!complaintId) {
-      Alert.alert('Error', 'complaintId missing');
+      toast.error('complaintId missing');
       navigation.goBack();
       return;
     }
-
     try {
       setLoading(true);
-
       const res = await fetch(`${BASE_URL}/api/complaints/used-items/${complaintId}`, {
         method: 'GET',
         headers: await authHeaders(),
       });
-
       const { raw, data } = await parseJson(res);
-      if (!data) {throw new Error(`Non-JSON response (HTTP ${res.status})`);}
-
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || raw || `HTTP ${res.status}`);
-      }
-
-      const normalizedItems = normalizeItemsFromResponse(data);
-      setItems(normalizedItems);
+      if (!data) { throw new Error(`Non-JSON response (HTTP ${res.status})`); }
+      if (!res.ok || data?.success === false) { throw new Error(data?.message || raw || `HTTP ${res.status}`); }
+      setItems(normalizeItemsFromResponse(data));
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Failed to load items');
+      toast.error(e?.message || 'Failed to load items');
     } finally {
       setLoading(false);
     }
-  }, [complaintId, navigation, authHeaders]);
+  }, [complaintId, navigation, authHeaders, toast]);
 
-  useEffect(() => {
-    fetchMaxItems();
-  }, [fetchMaxItems]);
+  useEffect(() => { fetchMaxItems(); }, [fetchMaxItems]);
 
-  const inc = (item_name) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.item_name !== item_name) {return item;}
-        if (item.selected_count >= item.max_count) {return item;}
-        return { ...item, selected_count: item.selected_count + 1 };
-      })
-    );
-  };
+  const inc = (item_name) =>
+    setItems((prev) => prev.map((item) =>
+      item.item_name !== item_name ? item : item.selected_count >= item.max_count ? item : { ...item, selected_count: item.selected_count + 1 }));
 
-  const dec = (item_name) => {
-    setItems((prev) =>
-      prev.map((item) => {
-        if (item.item_name !== item_name) {return item;}
-        if (item.selected_count <= 0) {return item;}
-        return { ...item, selected_count: item.selected_count - 1 };
-      })
-    );
-  };
+  const dec = (item_name) =>
+    setItems((prev) => prev.map((item) =>
+      item.item_name !== item_name ? item : item.selected_count <= 0 ? item : { ...item, selected_count: item.selected_count - 1 }));
 
-  const selectedItems = useMemo(() => {
-    return items
-      .filter((item) => Number(item.selected_count) > 0)
-      .map((item) => ({
-        item_name: item.item_name,
-        count: item.selected_count,
-      }));
-  }, [items]);
-
-  const canSubmit = useMemo(() => {
-    return selectedItems.length > 0;
-  }, [selectedItems]);
+  const selectedItems = useMemo(
+    () => items.filter((it) => Number(it.selected_count) > 0).map((it) => ({ item_name: it.item_name, count: it.selected_count })),
+    [items]
+  );
+  const canSubmit = useMemo(() => selectedItems.length > 0, [selectedItems]);
 
   const onSubmitResolve = async () => {
-    if (!canSubmit) {
-      Alert.alert('Error', 'Select at least one item with count > 0');
-      return;
-    }
-
+    if (!canSubmit) { return toast.warning('Select at least one item with count > 0'); }
     try {
       setSubmitting(true);
-
-      // ✅ only selected items with count > 0
       const used_items = selectedItems;
-
       const res = await fetch(`${BASE_URL}/api/resolved/${complaintId}`, {
         method: 'POST',
         headers: await authHeaders(),
         body: JSON.stringify({ used_items }),
       });
-
       const { raw, data } = await parseJson(res);
-      if (!data) {throw new Error(`Non-JSON response (HTTP ${res.status})`);}
-
-      if (!res.ok || data?.success === false) {
-        throw new Error(data?.message || raw || `HTTP ${res.status}`);
-      }
-
-      Alert.alert('Done', data?.message || 'Resolved successfully');
+      if (!data) { throw new Error(`Non-JSON response (HTTP ${res.status})`); }
+      if (!res.ok || data?.success === false) { throw new Error(data?.message || raw || `HTTP ${res.status}`); }
+      toast.success(data?.message || 'Resolved successfully');
       navigation.navigate('UserComplaintsScreen');
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Resolve failed');
+      toast.error(e?.message || 'Resolve failed');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const renderRow = ({ item }) => {
-    const mx = item.max_count ?? 0;
-    const cur = item.selected_count ?? 0;
-
-    const minusDisabled = cur <= 0;
-    const plusDisabled = cur >= mx;
-
-    return (
-      <View style={styles.row}>
+  const renderRow = ({ item }) => (
+    <Card style={{ marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.itemKey}>{item.item_name}</Text>
-          <Text style={styles.itemMeta}>Max: {mx}</Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize' }}>
+            {item.item_name}
+          </Text>
+          <Text style={{ marginTop: 2, color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+            Max: {item.max_count ?? 0}
+          </Text>
         </View>
-
-        <View style={styles.counterWrap}>
-          <TouchableOpacity
-            style={[styles.btnSmall, styles.btnMinus, minusDisabled && styles.btnDisabled]}
-            onPress={() => dec(item.item_name)}
-            disabled={minusDisabled}
-          >
-            <Text style={styles.btnSmallText}>-</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.count}>{cur}</Text>
-
-          <TouchableOpacity
-            style={[styles.btnSmall, styles.btnPlus, plusDisabled && styles.btnDisabled]}
-            onPress={() => inc(item.item_name)}
-            disabled={plusDisabled}
-          >
-            <Text style={styles.btnSmallText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        <Stepper
+          value={item.selected_count ?? 0}
+          max={item.max_count ?? 0}
+          onInc={() => inc(item.item_name)}
+          onDec={() => dec(item.item_name)}
+        />
       </View>
-    );
-  };
+    </Card>
+  );
+
+  const header = <AppBar title="Resolve Complaint" subtitle={`Complaint #${complaintId}`} role="user" onBack={() => navigation.goBack()} />;
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.muted}>Loading items...</Text>
-      </View>
+      <Screen header={header}>
+        <View style={{ padding: 16 }}>
+          <SkeletonList count={4} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Select Used Items</Text>
-      <Text style={styles.sub}>Complaint ID: {complaintId}</Text>
-
+    <Screen
+      header={header}
+      padded={false}
+      scroll={false}
+      footer={
+        <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface }}>
+          <Button
+            title="Submit & Resolve"
+            icon="checkCircle"
+            onPress={onSubmitResolve}
+            loading={submitting}
+            disabled={!canSubmit}
+            accent={colors.success}
+          />
+        </View>
+      }
+    >
       <FlatList
         data={items}
         keyExtractor={(item) => item.item_name}
         renderItem={renderRow}
-        ListEmptyComponent={
-          <View style={styles.centerEmpty}>
-            <Text style={styles.muted}>No allotted items found</Text>
-          </View>
+        contentContainerStyle={items.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : { padding: 16 }}
+        ListHeaderComponent={
+          items.length ? (
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
+              Select the quantity of each item used to resolve this complaint.
+            </Text>
+          ) : null
         }
-        contentContainerStyle={{ paddingBottom: 18, flexGrow: 1 }}
+        ListEmptyComponent={<EmptyState icon="box" title="No allotted items" subtitle="There are no items to select for this complaint." />}
       />
-
-      <TouchableOpacity
-        style={[
-          styles.submitBtn,
-          (!canSubmit || submitting) && styles.btnDisabled,
-        ]}
-        onPress={onSubmitResolve}
-        disabled={!canSubmit || submitting}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.submitText}>Submit & Resolve</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  centerEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  muted: { marginTop: 8, color: '#6b7280' },
-
-  container: { flex: 1, backgroundColor: '#fff', padding: 14 },
-  title: { fontSize: 22, fontWeight: '900', color: '#111827' },
-  sub: { marginTop: 6, marginBottom: 12, color: '#6b7280', fontWeight: '700' },
-
-  row: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemKey: { fontSize: 16, fontWeight: '900', color: '#111827', textTransform: 'capitalize' },
-  itemMeta: { marginTop: 2, color: '#6b7280', fontSize: 12, fontWeight: '700' },
-
-  counterWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  btnSmall: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnMinus: { backgroundColor: '#111827' },
-  btnPlus: { backgroundColor: '#2563eb' },
-  btnSmallText: { color: '#fff', fontSize: 20, fontWeight: '900' },
-  count: { width: 40, textAlign: 'center', fontSize: 18, fontWeight: '900', color: '#111827' },
-  btnDisabled: { opacity: 0.5 },
-
-  submitBtn: { backgroundColor: '#16a34a', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '900' },
-});

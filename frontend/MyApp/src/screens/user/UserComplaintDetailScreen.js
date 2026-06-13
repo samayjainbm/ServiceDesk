@@ -1,14 +1,15 @@
 // src/screens/user/UserComplaintDetailScreen.js
 import React, { useCallback, useEffect, useState } from 'react';
-import { BASE_URL, TOKEN_KEY } from "../../../config";
-import { View, Text, StyleSheet, Alert, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { BASE_URL, TOKEN_KEY } from '../../../config';
+import { View, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// const BASE_URL = 'http://192.168.0.111:3000';
-// const TOKEN_KEY = 'token'; // ✅ ONLY ONE TOKEN NAME
+import { useTheme } from '../../theme';
+import { Screen, AppBar, Card, Field, Button, StatusPill, Skeleton, EmptyState, useToast } from '../../components/ui';
 
 export default function UserComplaintDetailScreen({ route, navigation }) {
   const complaintId = route?.params?.complaintId ? String(route.params.complaintId) : '';
+  const { colors } = useTheme();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [c, setC] = useState(null);
@@ -45,109 +46,71 @@ export default function UserComplaintDetailScreen({ route, navigation }) {
     } catch (e) {
       const msg = String(e?.message || '');
       if (msg.toLowerCase().includes('not logged')) {
-        Alert.alert('Warning', 'Not logged in. Please login again.');
+        toast.warning('Not logged in. Please login again.');
         navigation.reset({ index: 0, routes: [{ name: 'UserLoginScreen' }] });
         return;
       }
-      Alert.alert('Error', msg || 'Failed to fetch detail');
+      toast.error(msg || 'Failed to fetch detail');
     } finally {
       setLoading(false);
     }
-  }, [complaintId, authHeaders, navigation]);
+  }, [complaintId, authHeaders, navigation, toast]);
 
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
 
-  // ✅ NEW FLOW:
-  // Resolve button अब POST /api/resolved/:id नहीं मारेगा
-  // बल्कि items selector screen पर ले जाएगा
   const goToResolveItems = () => {
     if (!complaintId) return;
     navigation.navigate('UserResolveItemsScreen', { complaintId });
   };
 
+  const header = <AppBar title="Complaint Details" subtitle="MANIT ServiceDesk" role="user" onBack={() => navigation.goBack()} />;
+
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.muted}>Loading detail...</Text>
-      </View>
+      <Screen header={header} scroll>
+        <Card>
+          <Skeleton width={'40%'} height={20} />
+          <Skeleton width={'60%'} height={14} style={{ marginTop: 14 }} />
+          <Skeleton width={'90%'} height={14} style={{ marginTop: 10 }} />
+          <Skeleton width={'80%'} height={14} style={{ marginTop: 10 }} />
+        </Card>
+      </Screen>
     );
   }
 
   if (!c) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.muted}>No detail found.</Text>
-      </View>
+      <Screen header={header}>
+        <EmptyState icon="clipboard" title="No detail found" subtitle="We couldn't load this complaint." />
+      </Screen>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Complaint Detail</Text>
+    <Screen header={header} scroll>
+      {/* Status header */}
+      <Card style={{ marginBottom: 16 }} accentBar={colors.primary}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>COMPLAINT</Text>
+            <Text style={{ color: colors.textPrimary, fontSize: 22, fontWeight: '900', marginTop: 2 }}>
+              #{c.complaint_id}
+            </Text>
+          </View>
+          <StatusPill status={c.status} />
+        </View>
+      </Card>
 
-      <View style={styles.box}>
-        <Text style={styles.k}>Complaint ID</Text>
-        <Text style={styles.v}>{c.complaint_id}</Text>
-      </View>
+      <Card>
+        <Field label="Worker ID" value={c.worker_id ?? 'Not assigned'} />
+        <Field label="Phone" value={c.phone_number} />
+        <Field label="Address" value={c.address} />
+        <Field label="Description" value={c.description} last />
+      </Card>
 
-      <View style={styles.row}>
-        <Text style={styles.k2}>Status:</Text>
-        <Text style={styles.v2}>{c.status}</Text>
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.k2}>Worker ID:</Text>
-        <Text style={styles.v2}>{String(c.worker_id ?? 'null')}</Text>
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.k2}>Phone:</Text>
-        <Text style={styles.v2}>{c.phone_number}</Text>
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.k2}>Address:</Text>
-        <Text style={styles.v2}>{c.address}</Text>
-      </View>
-
-      <View style={styles.row}>
-        <Text style={styles.k2}>Description:</Text>
-        <Text style={styles.v2}>{c.description}</Text>
-      </View>
-
-      {/* ✅ अब resolve सीधे POST नहीं करेगा, next page पर जाएगा */}
-      <TouchableOpacity style={styles.btn} onPress={goToResolveItems}>
-        <Text style={styles.btnText}>Resolve Complaint</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      <Button title="Resolve Complaint" icon="checkCircle" onPress={goToResolveItems} style={{ marginTop: 18 }} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  muted: { marginTop: 8, color: '#6b7280' },
-
-  container: { padding: 18, backgroundColor: '#fff', paddingBottom: 30 },
-  title: { fontSize: 22, fontWeight: '900', color: '#111827', marginBottom: 12 },
-
-  box: {
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  k: { color: '#1d4ed8', fontWeight: '700', fontSize: 12 },
-  v: { color: '#1e3a8a', fontWeight: '900', fontSize: 18, marginTop: 2 },
-
-  row: { flexDirection: 'row', gap: 10, marginBottom: 8, flexWrap: 'wrap' },
-  k2: { fontWeight: '900', color: '#111827' },
-  v2: { color: '#374151', flexShrink: 1 },
-
-  btn: { backgroundColor: '#111827', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 18 },
-  btnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-});
