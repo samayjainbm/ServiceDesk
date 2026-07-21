@@ -1,8 +1,3 @@
-<!--
-  README for the ServiceDesk monorepo.
-  NOTE: badges below use the placeholder repo slug `your-org/servicedesk`.
-  Find-and-replace it with your real GitHub `owner/repo` to activate the dynamic badges.
--->
 
 <div align="center">
 
@@ -16,12 +11,11 @@ A full‑stack, role‑based service desk for a college campus. Students raise c
 
 <br/>
 
-<!-- Repo badges (replace your-org/servicedesk) -->
 [![License](https://img.shields.io/badge/license-ISC-blue.svg)](#-license)
-[![Stars](https://img.shields.io/github/stars/your-org/servicedesk?style=flat)](https://github.com/your-org/servicedesk/stargazers)
-[![Forks](https://img.shields.io/github/forks/your-org/servicedesk?style=flat)](https://github.com/your-org/servicedesk/network/members)
-[![Issues](https://img.shields.io/github/issues/your-org/servicedesk)](https://github.com/your-org/servicedesk/issues)
-[![Last Commit](https://img.shields.io/github/last-commit/your-org/servicedesk)](https://github.com/your-org/servicedesk/commits)
+[![Stars](https://img.shields.io/github/stars/samayjainbm/ServiceDesk?style=flat)](https://github.com/samayjainbm/ServiceDesk/stargazers)
+[![Forks](https://img.shields.io/github/forks/samayjainbm/ServiceDesk?style=flat)](https://github.com/samayjainbm/ServiceDesk/network/members)
+[![Issues](https://img.shields.io/github/issues/samayjainbm/ServiceDesk)](https://github.com/samayjainbm/ServiceDesk/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/samayjainbm/ServiceDesk)](https://github.com/samayjainbm/ServiceDesk/commits)
 
 <!-- Tech badges -->
 ![React Native](https://img.shields.io/badge/React_Native-0.84-20232A?logo=react&logoColor=61DAFB)
@@ -38,7 +32,7 @@ A full‑stack, role‑based service desk for a college campus. Students raise c
 
 ## 📱 Demo
 
-> **Live API:** `https://service-desk-backend-sooty.vercel.app`  ·  **Android APK:** _add a build to [GitHub Releases](https://github.com/your-org/servicedesk/releases)_
+> **Live API:** `https://service-desk-backend-sooty.vercel.app`  ·  **Android APK:** _add a build to [GitHub Releases](https://github.com/samayjainbm/ServiceDesk/releases)_
 
 <!-- Drop real captures into docs/screenshots/ and they'll render here -->
 | Splash | Home (role picker) | Login | Dashboard |
@@ -286,7 +280,7 @@ ServiceDesk/
   (see the official [RN environment setup](https://reactnative.dev/docs/set-up-your-environment))
 
 ```bash
-git clone https://github.com/your-org/servicedesk.git
+git clone https://github.com/samayjainbm/ServiceDesk.git
 cd servicedesk
 ```
 
